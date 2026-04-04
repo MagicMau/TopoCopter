@@ -41,6 +41,7 @@ export const WORLD_DEPTHS = Object.freeze({
   MAP_BORDER: 2,
   DETAIL_MAP: 2.5,
   MARKER: 3,
+  QUIZ_TARGET: 4,
   HELICOPTER: 5,
   OVERLAY: 10,
 });

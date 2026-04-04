@@ -2,6 +2,11 @@ import Phaser from 'phaser';
 import CameraController from '../core/CameraController.js';
 import Helicopter from '../entities/Helicopter.js';
 import MapScene from './MapScene.js';
+import QuizController from '../quiz/QuizController.js';
+import HoverDetector from '../quiz/HoverDetector.js';
+import TargetVisualizer from '../quiz/TargetVisualizer.js';
+import QuizHUD from '../ui/QuizHUD.js';
+import { DATA_CACHE_KEYS } from './PreloadScene.js';
 import {
   CAMERA_FOLLOW,
   HELICOPTER_STYLE,
@@ -33,9 +38,20 @@ export default class HelicopterScene extends MapScene {
     this.freeLookActive = false;
     this.manualCameraUntil = 0;
     this.cameraFollowPaused = false;
+
+    // Quiz subsystems (initialised in create / createSceneSystems)
+    this._quizController    = null;
+    this._hoverDetector     = null;
+    this._targetVisualizer  = null;
+    this._quizHUD           = null;
+    this._activeTargetPoint = null; // { x, y } projected world coords
   }
 
   createWorldContent() {
+    // Initialise quiz controller first so getHelicopterOptions() can read the
+    // level speed before the helicopter is instantiated.
+    this._initQuizController();
+
     const spawnPoint = this.getSpawnPoint();
     this.spawnPoint.set(spawnPoint.x, spawnPoint.y);
 
@@ -58,6 +74,8 @@ export default class HelicopterScene extends MapScene {
     this.cameraController = this.instantiateCameraController();
     this.input.on('wheel', this.handleWheelInteraction, this);
     this.setCameraFollowPaused(false);
+
+    this._startQuizSystems();
   }
 
   destroySceneSystems() {
@@ -69,6 +87,42 @@ export default class HelicopterScene extends MapScene {
     this.helicopter = null;
     this.freeLookActive = false;
     this.manualCameraUntil = 0;
+
+    this._quizHUD?.destroy();
+    this._targetVisualizer?.destroy();
+    this._quizHUD          = null;
+    this._targetVisualizer = null;
+    this._hoverDetector    = null;
+    this._quizController   = null;
+    this._activeTargetPoint = null;
+  }
+
+  getHelicopterOptions() {
+    const baseSpeed = this._quizController?.level?.helicopterSpeed ?? MOVEMENT_STYLE.MAX_SPEED;
+
+    return {
+      depth: HELICOPTER_STYLE.DEPTH,
+      style: {
+        ...HELICOPTER_STYLE,
+        depth: HELICOPTER_STYLE.DEPTH,
+      },
+      movement: {
+        maxSpeed: baseSpeed,
+        acceleration: MOVEMENT_STYLE.ACCELERATION,
+        decelerationRadius: MOVEMENT_STYLE.DECELERATION_RADIUS,
+        stopThreshold: MOVEMENT_STYLE.STOP_THRESHOLD,
+      },
+      rotation: {
+        turnSpeed: ROTATION_STYLE.TURN_SPEED,
+        velocityThreshold: ROTATION_STYLE.MIN_SPEED,
+      },
+      maxSpeed: baseSpeed,
+      acceleration: MOVEMENT_STYLE.ACCELERATION,
+      decelerationRadius: MOVEMENT_STYLE.DECELERATION_RADIUS,
+      stopThreshold: MOVEMENT_STYLE.STOP_THRESHOLD,
+      turnSpeed: ROTATION_STYLE.TURN_SPEED,
+      velocityThreshold: ROTATION_STYLE.MIN_SPEED,
+    };
   }
 
   getInputControllerOptions(baseOptions) {
@@ -263,32 +317,6 @@ export default class HelicopterScene extends MapScene {
     );
   }
 
-  getHelicopterOptions() {
-    return {
-      depth: HELICOPTER_STYLE.DEPTH,
-      style: {
-        ...HELICOPTER_STYLE,
-        depth: HELICOPTER_STYLE.DEPTH,
-      },
-      movement: {
-        maxSpeed: MOVEMENT_STYLE.MAX_SPEED,
-        acceleration: MOVEMENT_STYLE.ACCELERATION,
-        decelerationRadius: MOVEMENT_STYLE.DECELERATION_RADIUS,
-        stopThreshold: MOVEMENT_STYLE.STOP_THRESHOLD,
-      },
-      rotation: {
-        turnSpeed: ROTATION_STYLE.TURN_SPEED,
-        velocityThreshold: ROTATION_STYLE.MIN_SPEED,
-      },
-      maxSpeed: MOVEMENT_STYLE.MAX_SPEED,
-      acceleration: MOVEMENT_STYLE.ACCELERATION,
-      decelerationRadius: MOVEMENT_STYLE.DECELERATION_RADIUS,
-      stopThreshold: MOVEMENT_STYLE.STOP_THRESHOLD,
-      turnSpeed: ROTATION_STYLE.TURN_SPEED,
-      velocityThreshold: ROTATION_STYLE.MIN_SPEED,
-    };
-  }
-
   instantiateCameraController() {
     const options = this.getCameraControllerOptions();
     const attempts = [
@@ -371,6 +399,96 @@ export default class HelicopterScene extends MapScene {
       this.manualCameraUntil,
       this.time.now + CAMERA_FOLLOW.ZOOM_GRACE_MS,
     );
+  }
+
+  layoutOverlay() {
+    super.layoutOverlay?.();
+    this._quizHUD?.layout();
+  }
+
+  // ── Quiz subsystem initialisation ─────────────────────────────────────────
+
+  _resolveStartLevelId() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('level');
+      if (id) return id;
+    } catch (_) { /* non-browser env */ }
+    return null;
+  }
+
+  _initQuizController() {
+    const targetsData = this.cache?.json?.get(DATA_CACHE_KEYS.QUIZ_TARGETS) ?? null;
+    const levelsData  = this.cache?.json?.get(DATA_CACHE_KEYS.QUIZ_LEVELS)  ?? null;
+
+    if (!targetsData || !levelsData) return;
+
+    this._quizController = new QuizController(targetsData, levelsData, {
+      onTargetChange: (target, progress) => this._onQuizTargetChange(target, progress),
+      onScoreUpdate:  (progress)         => this._onQuizScoreUpdate(progress),
+      onComplete:     (progress)         => this._onQuizComplete(progress),
+    });
+
+    // Resolve level now so getHelicopterOptions() can read the speed
+    const levelId = this._resolveStartLevelId();
+    this._quizController.level = this._quizController.resolveLevel(levelId);
+  }
+
+  _startQuizSystems() {
+    if (!this._quizController) return;
+
+    const level = this._quizController.level;
+
+    // Hover detector
+    this._hoverDetector = new HoverDetector({
+      hoverTime:  level?.hoverTime ?? 2000,
+      onProgress: (progress) => {
+        this._targetVisualizer?.updateProgress(progress, 0);
+        this._quizHUD?.updateHoverProgress(progress);
+      },
+      onComplete: () => this._quizController?.advance(),
+    });
+
+    // World-space target ring
+    this._targetVisualizer = new TargetVisualizer(this);
+
+    // UI overlay
+    this._quizHUD = new QuizHUD(this);
+
+    // Start the quiz (fires onTargetChange → _onQuizTargetChange)
+    this._quizController.start(level?.id);
+  }
+
+  // ── Quiz callbacks ────────────────────────────────────────────────────────
+
+  _onQuizTargetChange(target, progress) {
+    if (!target) return;
+
+    const pt = this.projectLatLon(target.lat, target.lon);
+    this._activeTargetPoint = pt ?? null;
+
+    if (pt) {
+      const radius = this._quizController?.level?.targetRadius ?? 60;
+      this._targetVisualizer?.showTarget(pt.x, pt.y, radius);
+    } else {
+      this._targetVisualizer?.hideTarget();
+    }
+
+    this._hoverDetector?.reset();
+
+    const levelName = this._quizController?.level?.name ?? '';
+    this._quizHUD?.showTarget(target.name, levelName, progress);
+  }
+
+  _onQuizScoreUpdate(progress) {
+    // HUD will refresh on next onTargetChange; nothing extra needed here.
+    void progress;
+  }
+
+  _onQuizComplete(progress) {
+    this._targetVisualizer?.hideTarget();
+    this._quizHUD?.showComplete(progress.score, progress.total);
+    this._hoverDetector = null;
   }
 
   enterFreeLook() {
@@ -486,6 +604,34 @@ export default class HelicopterScene extends MapScene {
 
     if (!manualCameraActive) {
       this.cameraController?.update?.(delta);
+    }
+
+    this._updateQuiz(delta);
+  }
+
+  _updateQuiz(delta) {
+    if (!this._hoverDetector || !this._activeTargetPoint) return;
+
+    const pos = this.helicopter?.getPosition?.();
+    if (!pos) return;
+
+    const heliX = Array.isArray(pos) ? pos[0] : pos.x;
+    const heliY = Array.isArray(pos) ? pos[1] : pos.y;
+    if (!Number.isFinite(heliX) || !Number.isFinite(heliY)) return;
+
+    const radius = this._quizController?.level?.targetRadius ?? 60;
+    const result = this._hoverDetector.update(
+      delta,
+      heliX,
+      heliY,
+      this._activeTargetPoint.x,
+      this._activeTargetPoint.y,
+      radius,
+    );
+
+    // Drive the pulse animation even when not hovering
+    if (this._targetVisualizer && !result.complete) {
+      this._targetVisualizer.updateProgress(result.progress, delta);
     }
   }
 }
