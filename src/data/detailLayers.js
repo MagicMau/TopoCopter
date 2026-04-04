@@ -16,7 +16,7 @@ export const DETAIL_LAYER_DEFINITIONS = Object.freeze([
     cacheKey: 'europe-admin1',
     label: 'Europe admin1 detail',
     url: europeAdmin1Url,
-    simplifyTolerance: 0.0016,
+    simplifyTolerance: 0.0008,
     minZoomMultiplier: 8,
   },
   {
@@ -24,7 +24,7 @@ export const DETAIL_LAYER_DEFINITIONS = Object.freeze([
     cacheKey: 'northern-europe-admin1',
     label: 'Northern Europe admin1 detail',
     url: northernEuropeAdmin1Url,
-    simplifyTolerance: 0.001,
-    minZoomMultiplier: 12,
+    simplifyTolerance: 0.0005,
+    minZoomMultiplier: 8,
   },
 ]);
