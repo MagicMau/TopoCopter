@@ -1,0 +1,23 @@
+{
+  "name": "topocopter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Milestone 2 interactive map for a Phaser remake of Nederlandse Topografie.",
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "phaser": "^3.70.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10",
+    "vitest": "^4.1.2"
+  }
+}

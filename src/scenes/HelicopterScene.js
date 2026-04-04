@@ -456,7 +456,11 @@ export default class HelicopterScene extends MapScene {
     }
 
     const zoom = Math.max(this.cameras.main.zoom, 0.0001);
-    const scale = HELICOPTER_STYLE.SCALE_FACTOR / zoom;
+    const scale = Phaser.Math.Clamp(
+      HELICOPTER_STYLE.SCALE_FACTOR / zoom,
+      HELICOPTER_STYLE.MIN_SCALE,
+      HELICOPTER_STYLE.MAX_SCALE,
+    );
 
     if (typeof this.helicopter.setVisualScale === 'function') {
       this.helicopter.setVisualScale(scale);
