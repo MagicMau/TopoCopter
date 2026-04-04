@@ -34,8 +34,8 @@
     {
       "id": "level-4",
       "name": "Gevorderd",
-      "description": "Alle categorieën, kleinere doelen",
-      "categories": ["countries", "cities", "water"],
+      "description": "Landen, steden, water en gebieden",
+      "categories": ["countries", "cities", "water", "areas"],
       "targetCount": 12,
       "hoverTime": 1800,
       "helicopterSpeed": 500,
@@ -45,11 +45,31 @@
       "id": "level-5",
       "name": "Expert",
       "description": "Alle categorieën, strakke tijdslimiet",
-      "categories": ["countries", "cities", "water"],
+      "categories": ["countries", "cities", "water", "areas"],
       "targetCount": 15,
       "hoverTime": 1500,
       "helicopterSpeed": 600,
       "targetRadius": 24
+    },
+    {
+      "id": "level-6",
+      "name": "Gebieden",
+      "description": "Herken Europese gebieden en landschappen",
+      "categories": ["areas"],
+      "targetCount": 8,
+      "hoverTime": 3000,
+      "helicopterSpeed": 300,
+      "targetRadius": 80
+    },
+    {
+      "id": "level-7",
+      "name": "Alles door elkaar",
+      "description": "Landen, steden, water én gebieden gemengd",
+      "categories": ["countries", "cities", "water", "areas"],
+      "targetCount": 20,
+      "hoverTime": 2000,
+      "helicopterSpeed": 420,
+      "targetRadius": 40
     }
   ]
 }

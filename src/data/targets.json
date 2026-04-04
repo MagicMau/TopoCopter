@@ -61,5 +61,21 @@
     { "id": "water-danube",          "name": "Donau",            "lat": 45.5000, "lon": 29.7000 },
     { "id": "water-lake-geneva",     "name": "Meer van Genève",  "lat": 46.4500, "lon":  6.5000 },
     { "id": "water-ijsselmeer",      "name": "IJsselmeer",       "lat": 52.7500, "lon":  5.3000 }
+  ],
+  "areas": [
+    { "id": "area-alps",                    "name": "De Alpen",                  "lat": 46.5000, "lon": 10.0000 },
+    { "id": "area-pyrenees",                "name": "De Pyreneeën",              "lat": 42.8000, "lon":  1.5000 },
+    { "id": "area-carpathians",             "name": "De Karpaten",               "lat": 49.0000, "lon": 22.0000 },
+    { "id": "area-apennines",               "name": "De Apennijnen",             "lat": 42.5000, "lon": 13.5000 },
+    { "id": "area-scandinavian-mountains",  "name": "De Scandinavische Bergen",  "lat": 63.0000, "lon": 14.0000 },
+    { "id": "area-biesbosch",               "name": "De Biesbosch",              "lat": 51.7600, "lon":  4.8000 },
+    { "id": "area-veluwe",                  "name": "De Veluwe",                 "lat": 52.2000, "lon":  5.8500 },
+    { "id": "area-wadden",                  "name": "Het Waddengebied",          "lat": 53.2000, "lon":  5.5000 },
+    { "id": "area-ardennes",                "name": "De Ardennen",               "lat": 50.0000, "lon":  5.5000 },
+    { "id": "area-black-forest",            "name": "Het Zwarte Woud",           "lat": 48.0000, "lon":  8.2000 },
+    { "id": "area-camargue",                "name": "De Camargue",               "lat": 43.5000, "lon":  4.6000 },
+    { "id": "area-tuscany",                 "name": "Toscane",                   "lat": 43.4000, "lon": 11.0000 },
+    { "id": "area-puszta",                  "name": "De Puszta",                 "lat": 47.3000, "lon": 20.5000 },
+    { "id": "area-lapland",                 "name": "Lapland",                   "lat": 68.0000, "lon": 26.0000 }
   ]
 }
