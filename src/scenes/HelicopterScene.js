@@ -135,6 +135,17 @@ export default class HelicopterScene extends MapScene {
       onCommandUp: (pointer) => this.handleCommandUp(pointer),
       commandPredicate: (pointer, worldX, worldY) =>
         this.shouldHandleCommand(pointer, worldX, worldY),
+      // When camera-follow is active, zoom around the screen centre (helicopter stays visible).
+      // Only zoom around the mouse pointer when the user has entered free-look mode.
+      getZoomAnchor: (mouseCanvasX, mouseCanvasY) => {
+        if (this.freeLookActive) {
+          return { x: mouseCanvasX, y: mouseCanvasY };
+        }
+        return {
+          x: this.cameras.main.width * 0.5,
+          y: this.cameras.main.height * 0.5,
+        };
+      },
     };
   }
 
@@ -214,10 +225,13 @@ export default class HelicopterScene extends MapScene {
     }
 
     const target = this.clampWorldPoint(worldX, worldY);
-    const markerTarget = this.getMarkerTargetAt(target.x, target.y);
 
-    if (markerTarget) {
-      this.helicopter.setTarget(markerTarget.x, markerTarget.y, {
+    // Only snap to the active quiz target — background city markers must not redirect
+    // clicks, as their snap radius (in world units) is too large at low zoom and causes
+    // the helicopter to fly to an unintended city instead of the clicked position.
+    const quizTarget = this._getQuizSnapTarget(target.x, target.y);
+    if (quizTarget) {
+      this.helicopter.setTarget(quizTarget.x, quizTarget.y, {
         stopThreshold: this.getPreciseArrivalThreshold(),
         snapOnArrival: true,
       });
@@ -225,6 +239,18 @@ export default class HelicopterScene extends MapScene {
     }
 
     this.helicopter.setTarget(target.x, target.y);
+  }
+
+  _getQuizSnapTarget(worldX, worldY) {
+    if (!this._activeTargetPoint) {
+      return null;
+    }
+
+    const hitRadius = this.getMarkerTargetRadius();
+    const dx = this._activeTargetPoint.x - worldX;
+    const dy = this._activeTargetPoint.y - worldY;
+
+    return dx * dx + dy * dy <= hitRadius * hitRadius ? this._activeTargetPoint : null;
   }
 
   getMarkerTargetAt(worldX, worldY) {
@@ -395,10 +421,15 @@ export default class HelicopterScene extends MapScene {
   }
 
   handleWheelInteraction() {
-    this.manualCameraUntil = Math.max(
-      this.manualCameraUntil,
-      this.time.now + CAMERA_FOLLOW.ZOOM_GRACE_MS,
-    );
+    // Only pause camera-follow when already in free-look mode.  Applying a grace period
+    // unconditionally caused the helicopter to fly off-screen whenever the user zoomed
+    // in while it was mid-flight (camera detached, helicopter kept moving).
+    if (this.freeLookActive) {
+      this.manualCameraUntil = Math.max(
+        this.manualCameraUntil,
+        this.time.now + CAMERA_FOLLOW.ZOOM_GRACE_MS,
+      );
+    }
   }
 
   layoutOverlay() {
@@ -571,8 +602,10 @@ export default class HelicopterScene extends MapScene {
     } else {
       this.helicopter.setScale?.(scale);
     }
-    this.helicopter.refreshBody?.();
-    this.helicopter.body?.updateFromGameObject?.();
+    // Do NOT call refreshBody / updateFromGameObject here: refreshBody resets the
+    // physics body velocity (body.stop()), which would kill helicopter movement on
+    // every zoom event.  The hitbox was explicitly sized at construction time and
+    // does not need resyncing when only the visual scale changes.
   }
 
   readPointInto(point, targetVector, fallbackPoint = this.spawnPoint) {

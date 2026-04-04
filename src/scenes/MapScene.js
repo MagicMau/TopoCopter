@@ -35,6 +35,9 @@ export default class MapScene extends Phaser.Scene {
     const camera = this.cameras.main;
     camera.setBackgroundColor(PALETTE.water);
     camera.setBounds(0, 0, WORLD_LAYOUT.WIDTH, WORLD_LAYOUT.HEIGHT);
+    // Disable Phaser's built-in scroll clamping: its formula mixes pixel-units with world-units
+    // and gives wrong bounds at zoom != 1. We handle clamping with the correct formula instead.
+    camera.useBounds = false;
 
     this.worldDisplayObjects = [];
     this.uiDisplayObjects = [];
@@ -81,7 +84,10 @@ export default class MapScene extends Phaser.Scene {
 
     this.baseMapMinZoom = minZoom;
     camera.setZoom(minZoom);
-    camera.centerOn(initialFocus.x, initialFocus.y);
+    // Use the correct scroll formula: scrollX = worldX - viewHalfWidth/zoom (world at screen left)
+    // camera.centerOn() ignores zoom and gives wrong scroll at zoom != 1.
+    camera.scrollX = initialFocus.x - camera.width * 0.5 / minZoom;
+    camera.scrollY = initialFocus.y - camera.height * 0.5 / minZoom;
     this.lastCameraZoom = camera.zoom;
 
     this.inputController = new InputController(

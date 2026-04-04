@@ -30,6 +30,8 @@ export default class InputController {
       typeof options.commandPredicate === 'function'
         ? options.commandPredicate
         : () => false;
+    this.getZoomAnchor =
+      typeof options.getZoomAnchor === 'function' ? options.getZoomAnchor : null;
     const commandMoveThreshold = Number(options.commandMoveThreshold);
     this.commandMoveThreshold =
       Number.isFinite(commandMoveThreshold) && commandMoveThreshold >= 0
@@ -185,7 +187,18 @@ export default class InputController {
       this.pointerCanvasPoint,
     );
     const zoomScale = Math.exp(-(Number(deltaY) || 0) * this.wheelZoomSpeed);
-    this.zoomTo(this.camera.zoom * zoomScale, canvasPoint.x, canvasPoint.y);
+
+    let anchorX = canvasPoint.x;
+    let anchorY = canvasPoint.y;
+    if (this.getZoomAnchor) {
+      const anchor = this.getZoomAnchor(canvasPoint.x, canvasPoint.y);
+      if (anchor) {
+        anchorX = anchor.x;
+        anchorY = anchor.y;
+      }
+    }
+
+    this.zoomTo(this.camera.zoom * zoomScale, anchorX, anchorY);
   }
 
   beginDrag(pointer) {
@@ -356,6 +369,8 @@ export default class InputController {
     const cameraX = this.camera.x;
     const cameraY = this.camera.y;
 
+    // Phaser rendering: worldX = scrollX + (screenX - cameraX) / zoom
+    // (consistent with Phaser's own camera.getWorldPoint formula)
     output.x = this.camera.scrollX + (canvasX - cameraX) / resolvedZoom;
     output.y = this.camera.scrollY + (canvasY - cameraY) / resolvedZoom;
 
@@ -398,7 +413,6 @@ export default class InputController {
 
     this.camera.setZoom(nextZoom);
 
-    // Keep the world point under (anchorX, anchorY) anchored at (screenX, screenY)
     this.camera.scrollX = anchorWorldX - (screenX - camX) / nextZoom;
     this.camera.scrollY = anchorWorldY - (screenY - camY) / nextZoom;
 
@@ -439,16 +453,6 @@ export default class InputController {
   }
 
   clampCamera() {
-    if (
-      this.camera.useBounds &&
-      typeof this.camera.clampX === 'function' &&
-      typeof this.camera.clampY === 'function'
-    ) {
-      this.camera.scrollX = this.camera.clampX(this.camera.scrollX);
-      this.camera.scrollY = this.camera.clampY(this.camera.scrollY);
-      return;
-    }
-
     const bounds = this.resolveScrollBounds();
 
     if (!bounds) {
@@ -458,23 +462,25 @@ export default class InputController {
     const zoom = Math.max(Number(this.camera.zoom) || 0, 0.0001);
     const cameraWidth = Number(this.camera.width) || 0;
     const cameraHeight = Number(this.camera.height) || 0;
-    const displayWidth = Number.isFinite(this.camera.displayWidth)
-      ? this.camera.displayWidth
-      : cameraWidth / zoom;
-    const displayHeight = Number.isFinite(this.camera.displayHeight)
-      ? this.camera.displayHeight
-      : cameraHeight / zoom;
-    const minScrollX = (Number(bounds.x) || 0) + (displayWidth - cameraWidth) * 0.5;
-    const minScrollY =
-      (Number(bounds.y) || 0) + (displayHeight - cameraHeight) * 0.5;
-    const maxScrollX = Math.max(minScrollX, minScrollX + bounds.width - displayWidth);
-    const maxScrollY = Math.max(
-      minScrollY,
-      minScrollY + bounds.height - displayHeight,
-    );
+    // viewWidth/viewHeight: world units visible at current zoom (scrollX = world at screen left)
+    const viewWidth = cameraWidth / zoom;
+    const viewHeight = cameraHeight / zoom;
+    const bx = Number(bounds.x) || 0;
+    const by = Number(bounds.y) || 0;
+    const bw = Number(bounds.width) || 0;
+    const bh = Number(bounds.height) || 0;
 
-    this.camera.scrollX = Phaser.Math.Clamp(this.camera.scrollX, minScrollX, maxScrollX);
-    this.camera.scrollY = Phaser.Math.Clamp(this.camera.scrollY, minScrollY, maxScrollY);
+    if (bw > viewWidth) {
+      this.camera.scrollX = Phaser.Math.Clamp(this.camera.scrollX, bx, bx + bw - viewWidth);
+    } else {
+      this.camera.scrollX = bx + (bw - viewWidth) * 0.5;
+    }
+
+    if (bh > viewHeight) {
+      this.camera.scrollY = Phaser.Math.Clamp(this.camera.scrollY, by, by + bh - viewHeight);
+    } else {
+      this.camera.scrollY = by + (bh - viewHeight) * 0.5;
+    }
   }
 
   isCommandSteeringActive() {

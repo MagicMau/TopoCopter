@@ -41,6 +41,7 @@ vi.mock('phaser', () => {
     setOrigin() { return this; }
     setDepth(d) { this.depth = d; return this; }
     setDisplaySize(w, h) { this.displayWidth = w; this.displayHeight = h; return this; }
+    setScale(s) { this.scaleX = s; this.scaleY = s; return this; }
     setRotation(r) { this.rotation = r; return this; }
   }
 
@@ -217,6 +218,46 @@ describe('Helicopter (fallback-body / no-physics environment)', () => {
       heli.fallbackBody.velocity.x = 30;
       heli.fallbackBody.velocity.y = -40;
       expect(heli.getVelocity()).toEqual({ x: 30, y: -40 });
+    });
+  });
+
+  describe('setVisualScale', () => {
+    it('is a function', () => {
+      const heli = new Helicopter(makeScene(), 0, 0);
+      expect(typeof heli.setVisualScale).toBe('function');
+    });
+
+    it('returns this for chaining', () => {
+      const heli = new Helicopter(makeScene(), 0, 0);
+      expect(heli.setVisualScale(0.5)).toBe(heli);
+    });
+
+    it('stores _physicsWidth and _physicsHeight at construction', () => {
+      const heli = new Helicopter(makeScene(), 0, 0);
+      expect(typeof heli._physicsWidth).toBe('number');
+      expect(typeof heli._physicsHeight).toBe('number');
+      expect(heli._physicsWidth).toBeGreaterThan(0);
+      expect(heli._physicsHeight).toBeGreaterThan(0);
+    });
+
+    it('does not throw or mutate position when called with various scales', () => {
+      const heli = new Helicopter(makeScene(), 100, 200);
+      // Call with several scale values (no real physics body in fallback mode, so no body.setSize)
+      expect(() => heli.setVisualScale(0.1)).not.toThrow();
+      expect(() => heli.setVisualScale(1.0)).not.toThrow();
+      expect(() => heli.setVisualScale(2.4)).not.toThrow();
+      // Position must be unchanged
+      expect(heli.getPosition()).toEqual({ x: 100, y: 200 });
+    });
+
+    it('does not zero fallbackBody velocity', () => {
+      const heli = new Helicopter(makeScene(), 0, 0);
+      heli.fallbackBody.velocity.x = 150;
+      heli.fallbackBody.velocity.y = 75;
+      heli.setVisualScale(0.55);
+      // Velocity must be unaffected — syncHelicopterScale must not stop the helicopter
+      expect(heli.fallbackBody.velocity.x).toBe(150);
+      expect(heli.fallbackBody.velocity.y).toBe(75);
     });
   });
 });

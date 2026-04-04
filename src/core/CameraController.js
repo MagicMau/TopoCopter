@@ -224,15 +224,19 @@ export default class CameraController {
     const camWidth = toFiniteNumber(this.camera.width, 0);
     const camHeight = toFiniteNumber(this.camera.height, 0);
 
-    // Ideal scroll centers the target in the viewport at current zoom
-    const idealScrollX = this.targetPosition.x - camWidth * 0.5 / zoom;
-    const idealScrollY = this.targetPosition.y - camHeight * 0.5 / zoom;
+    // scrollX = worldCenter - halfW/zoom so that: worldX at screen centre = scrollX + halfW/zoom = worldCenter
+    // This is consistent with Phaser's rendering: worldX = scrollX + screenX/zoom.
+    const halfWOverZoom = camWidth * 0.5 / zoom;
+    const halfHOverZoom = camHeight * 0.5 / zoom;
+    const idealScrollX = this.targetPosition.x - halfWOverZoom;
+    const idealScrollY = this.targetPosition.y - halfHOverZoom;
 
     if (this.deadzoneWidth > 0 || this.deadzoneHeight > 0) {
       const currentScrollX = toFiniteNumber(this.camera.scrollX, 0);
       const currentScrollY = toFiniteNumber(this.camera.scrollY, 0);
 
-      // Target's offset from viewport centre in screen pixels
+      // Target's offset from viewport centre in screen pixels.
+      // worldX = scrollX + screenX/zoom → screenX = (worldX - scrollX)*zoom
       const offsetX = (this.targetPosition.x - currentScrollX) * zoom - camWidth * 0.5;
       const offsetY = (this.targetPosition.y - currentScrollY) * zoom - camHeight * 0.5;
 
@@ -283,17 +287,6 @@ export default class CameraController {
     output = this.clampedScroll,
     zoom = Math.max(toFiniteNumber(this.camera?.zoom, 1), 0.0001),
   ) {
-    if (
-      this.camera?.useBounds &&
-      typeof this.camera.clampX === 'function' &&
-      typeof this.camera.clampY === 'function'
-    ) {
-      output.x = this.camera.clampX(scrollX);
-      output.y = this.camera.clampY(scrollY);
-
-      return output;
-    }
-
     const bounds = resolveScrollBounds(this.camera, this.worldWidth, this.worldHeight);
 
     if (!bounds) {
@@ -305,21 +298,21 @@ export default class CameraController {
 
     const cameraWidth = toFiniteNumber(this.camera?.width, 0);
     const cameraHeight = toFiniteNumber(this.camera?.height, 0);
-    const displayWidth = toFiniteNumber(this.camera?.displayWidth, cameraWidth / zoom);
-    const displayHeight = toFiniteNumber(
-      this.camera?.displayHeight,
-      cameraHeight / zoom,
-    );
-    const minScrollX = bounds.x + (displayWidth - cameraWidth) * 0.5;
-    const minScrollY = bounds.y + (displayHeight - cameraHeight) * 0.5;
-    const maxScrollX = Math.max(minScrollX, minScrollX + bounds.width - displayWidth);
-    const maxScrollY = Math.max(
-      minScrollY,
-      minScrollY + bounds.height - displayHeight,
-    );
+    // viewWidth/viewHeight: world units visible at current zoom (scrollX = world at screen left)
+    const viewWidth = cameraWidth / zoom;
+    const viewHeight = cameraHeight / zoom;
+    const bx = bounds.x;
+    const by = bounds.y;
+    const bw = bounds.width;
+    const bh = bounds.height;
 
-    output.x = clamp(scrollX, minScrollX, maxScrollX);
-    output.y = clamp(scrollY, minScrollY, maxScrollY);
+    output.x = bw > viewWidth
+      ? clamp(scrollX, bx, bx + bw - viewWidth)
+      : bx + (bw - viewWidth) * 0.5;
+
+    output.y = bh > viewHeight
+      ? clamp(scrollY, by, by + bh - viewHeight)
+      : by + (bh - viewHeight) * 0.5;
 
     return output;
   }

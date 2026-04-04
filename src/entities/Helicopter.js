@@ -298,6 +298,11 @@ export default class Helicopter extends Phaser.Physics.Arcade.Sprite {
       const hitboxWidth = Math.max(this.displayWidth * 0.56, 16);
       const hitboxHeight = Math.max(this.displayHeight * 0.42, 10);
 
+      // Store the desired constant physics hitbox dimensions so setVisualScale can
+      // keep them stable regardless of the visual sprite scale.
+      this._physicsWidth = hitboxWidth;
+      this._physicsHeight = hitboxHeight;
+
       if (typeof activeBody.setAllowGravity === 'function') {
         activeBody.setAllowGravity(false);
       }
@@ -346,6 +351,22 @@ export default class Helicopter extends Phaser.Physics.Arcade.Sprite {
   setTarget(x, y, options = {}) {
     this.movementController.setTarget(x, y, options);
     this.emit('targetchange', this.movementController.getTarget());
+    return this;
+  }
+
+  setVisualScale(scale) {
+    const absScale = Math.max(Math.abs(toFiniteNumber(scale, 1)), 0.0001);
+    this.setScale?.(absScale);
+
+    // Resize the physics body source dimensions so the actual hitbox stays at the
+    // original constant size in world-units regardless of the visual scale.  Without
+    // this, Phaser's updateBounds() resizes the hitbox every tick when scaleX changes,
+    // shifting the body position and altering collision behaviour.
+    const body = this.body;
+    if (body && typeof body.setSize === 'function' && this._physicsWidth && this._physicsHeight) {
+      body.setSize(this._physicsWidth / absScale, this._physicsHeight / absScale, true);
+    }
+
     return this;
   }
 

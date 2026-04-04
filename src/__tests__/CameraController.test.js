@@ -89,7 +89,7 @@ describe('CameraController', () => {
 
   describe('deadzone behavior (followLag=0)', () => {
     it('does not scroll when target sits at viewport centre', () => {
-      // Target at pixel (400,300) → screen offset (0,0) → within any deadzone
+      // offsetX = (400 - 0 - 400) * 1 = 0 → within any deadzone
       const cam = makeCamera(0, 0, 800, 600, 1);
       const cc = new CameraController(cam, makeTarget(400, 300), {
         followLag: 0,
@@ -102,7 +102,8 @@ describe('CameraController', () => {
     });
 
     it('does not scroll when target is within deadzone but off-centre', () => {
-      // Target at (420,310) → offsetX=20, offsetY=10; halfDZW=100, halfDZH=75 → within
+      // offsetX = (420 - 0 - 400) * 1 = 20, offsetY = (310 - 0 - 300) * 1 = 10
+      // halfDZW=100, halfDZH=75 → both within deadzone → no scroll
       const cam = makeCamera(0, 0, 800, 600, 1);
       const cc = new CameraController(cam, makeTarget(420, 310), {
         followLag: 0,
@@ -115,8 +116,8 @@ describe('CameraController', () => {
     });
 
     it('scrolls right when target exits deadzone to the right', () => {
-      // Target at (600, 300); offsetX = (600-0)*1 - 400 = 200; halfDZW = 50
-      // 200 > 50 → desiredScrollX = 600 - (400+50)/1 = 150
+      // offsetX = (600 - 0 - 400) * 1 = 200; halfDZW = 50
+      // 200 > 50 → desiredScrollX = 600 - 400 - 50/1 = 150
       const cam = makeCamera(0, 0, 800, 600, 1);
       const cc = new CameraController(cam, makeTarget(600, 300), {
         followLag: 0,
@@ -129,8 +130,8 @@ describe('CameraController', () => {
     });
 
     it('scrolls left when target exits deadzone to the left', () => {
-      // Target at (200, 300); offsetX = (200-0)*1 - 400 = -200; halfDZW = 50
-      // -200 < -50 → desiredScrollX = 200 - (400-50)/1 = -150
+      // offsetX = (200 - 0 - 400) * 1 = -200; halfDZW = 50
+      // -200 < -50 → desiredScrollX = 200 - 400 + 50/1 = -150
       const cam = makeCamera(0, 0, 800, 600, 1);
       const cc = new CameraController(cam, makeTarget(200, 300), {
         followLag: 0,
@@ -143,8 +144,8 @@ describe('CameraController', () => {
     });
 
     it('scrolls down when target exits deadzone below', () => {
-      // Target at (400, 500); offsetY = (500-0)*1 - 300 = 200; halfDZH = 50
-      // 200 > 50 → desiredScrollY = 500 - (300+50)/1 = 150
+      // offsetY = (500 - 0 - 300) * 1 = 200; halfDZH = 50
+      // 200 > 50 → desiredScrollY = 500 - 300 - 50/1 = 150
       const cam = makeCamera(0, 0, 800, 600, 1);
       const cc = new CameraController(cam, makeTarget(400, 500), {
         followLag: 0,
@@ -197,6 +198,50 @@ describe('CameraController', () => {
       });
       cc.update(16);
       expect(cam.scrollX).toBeCloseTo(1200);
+    });
+
+    it('clamps scroll correctly at zoom=2 (world-unit bounds, not pixel bounds)', () => {
+      // At zoom=2 the visible world area is 800/2=400 wide (world units).
+      // World 2000×1500; target at world (1800, 1300).
+      // idealScrollX = 1800 - 800/(2*2) = 1800 - 200 = 1600; maxScrollX = 2000 - 400 = 1600
+      // idealScrollY = 1300 - 600/(2*2) = 1300 - 150 = 1150; maxScrollY = 1500 - 300 = 1200
+      const cam = makeCamera(0, 0, 800, 600, 2);
+      const cc = new CameraController(cam, makeTarget(1800, 1300), {
+        followLag: 0,
+        worldWidth: 2000,
+        worldHeight: 1500,
+      });
+      cc.update(16);
+      expect(cam.scrollX).toBeCloseTo(1600);
+      expect(cam.scrollY).toBeCloseTo(1150);
+    });
+
+    it('clamps to right boundary correctly at zoom=4', () => {
+      // At zoom=4 visible area is 200×150. World 2000×1500.
+      // maxScrollX = 2000 - 200 = 1800; maxScrollY = 1500 - 150 = 1350.
+      const cam = makeCamera(0, 0, 800, 600, 4);
+      const cc = new CameraController(cam, makeTarget(10_000, 10_000), {
+        followLag: 0,
+        worldWidth: 2000,
+        worldHeight: 1500,
+      });
+      cc.update(16);
+      expect(cam.scrollX).toBeCloseTo(1800);
+      expect(cam.scrollY).toBeCloseTo(1350);
+    });
+
+    it('centers world horizontally when view is wider than world', () => {
+      // worldWidth=800, viewWidth at zoom=0.25 = 800/0.25 = 3200 > 800
+      // scrollX = (800 - 3200) / 2 = -1200
+      const cam = makeCamera(0, 0, 800, 600, 0.25);
+      const cc = new CameraController(cam, makeTarget(400, 300), {
+        followLag: 0,
+        worldWidth: 800,
+        worldHeight: 600,
+      });
+      cc.update(16);
+      expect(cam.scrollX).toBeCloseTo(-1200);
+      expect(cam.scrollY).toBeCloseTo(-900);
     });
   });
 
