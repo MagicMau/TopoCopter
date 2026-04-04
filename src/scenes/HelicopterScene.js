@@ -663,7 +663,7 @@ export default class HelicopterScene extends MapScene {
 
     // Drive the pulse animation even when not hovering
     if (this._targetVisualizer && !result.complete) {
-      this._targetVisualizer.updateProgress(result.progress, delta);
+      this._targetVisualizer.updateProgress(result.progress, delta, result.hovering);
     }
   }
 }

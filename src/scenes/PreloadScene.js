@@ -54,7 +54,7 @@ export default class PreloadScene extends Phaser.Scene {
 
     const { width, height } = this.scale;
     const loadingText = this.add
-      .text(width * 0.5, height * 0.5, 'Loading map…', {
+      .text(width * 0.5, height * 0.5, 'Kaart laden…', {
         fontFamily: OVERLAY_STYLE.FONT_FAMILY,
         fontSize: OVERLAY_STYLE.FONT_SIZE,
         color: PALETTE.overlayText,
@@ -74,7 +74,7 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image(DATA_CACHE_KEYS.WORLD_RELIEF, worldReliefUrl);
 
     this.load.on(Phaser.Loader.Events.PROGRESS, (value) => {
-      loadingText.setText(`Loading map… ${Math.round(value * 100)}%`);
+      loadingText.setText(`Kaart laden… ${Math.round(value * 100)}%`);
     });
   }
 

@@ -1,7 +1,7 @@
 const MAP_CONTROLS_COPY =
-  'Drag to pan\nPinch, double-tap, or use the wheel to zoom';
+  'Sleep om te bewegen\nKnijp, dubbeltik of gebruik het scrollwiel om te zoomen';
 const HELICOPTER_CONTROLS_COPY =
-  'Tap or click to fly\nHold or drag to steer\nRight-drag, pinch, double-tap, or use the wheel to pan and zoom';
+  'Tik of klik om te vliegen\nHoud ingedrukt of sleep om te sturen\nRechtssleep, knijp, dubbeltik of gebruik het scrollwiel om te bewegen en zoomen';
 
 export const PALETTE = Object.freeze({
   water: 0xf4f7fb,

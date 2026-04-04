@@ -31,6 +31,7 @@ export default class TargetVisualizer {
     this._hoverProgress = 0;
     this._elapsed       = 0;
     this._visible       = false;
+    this._hovering      = false;
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -40,19 +41,22 @@ export default class TargetVisualizer {
     this._targetY       = worldY;
     this._radius        = Math.max(1, radius);
     this._visible       = true;
+    this._hovering      = false;
     this._hoverProgress = 0;
     this._elapsed       = 0;
-    this._draw();
+    this._graphics?.clear();
     return this;
   }
 
   /**
    * Called every frame.
-   * @param {number} progress - hover progress 0–1
-   * @param {number} delta    - frame delta ms (drives pulse animation)
+   * @param {number}  progress - hover progress 0–1
+   * @param {number}  delta    - frame delta ms (drives pulse animation)
+   * @param {boolean} hovering - whether the helicopter is inside the target zone
    */
-  updateProgress(progress, delta) {
+  updateProgress(progress, delta, hovering = false) {
     if (!this._visible) return;
+    this._hovering      = Boolean(hovering);
     this._hoverProgress = Math.max(0, Math.min(1, progress));
     this._elapsed      += delta;
     this._draw();
@@ -76,6 +80,9 @@ export default class TargetVisualizer {
     if (!g || !this._visible) return;
 
     g.clear();
+
+    // Only render when the helicopter is inside the target zone
+    if (!this._hovering) return;
 
     const { _targetX: x, _targetY: y, _radius: r } = this;
 
