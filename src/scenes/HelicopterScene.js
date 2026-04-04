@@ -291,24 +291,11 @@ export default class HelicopterScene extends MapScene {
 
   instantiateCameraController() {
     const options = this.getCameraControllerOptions();
-    const attempts =
-      CameraController.length >= 3
-        ? [
-            () => new CameraController(this.cameras.main, this.helicopter, options),
-            () => new CameraController(this, options),
-            () => new CameraController({ scene: this, ...options }),
-          ]
-        : CameraController.length === 2
-          ? [
-              () => new CameraController(this, options),
-              () => new CameraController(this.cameras.main, this.helicopter, options),
-              () => new CameraController({ scene: this, ...options }),
-            ]
-          : [
-              () => new CameraController({ scene: this, ...options }),
-              () => new CameraController(this, options),
-              () => new CameraController(this.cameras.main, this.helicopter, options),
-            ];
+    const attempts = [
+      () => new CameraController(this.cameras.main, this.helicopter, options),
+      () => new CameraController(this, options),
+      () => new CameraController({ scene: this, ...options }),
+    ];
 
     for (const attempt of attempts) {
       try {
