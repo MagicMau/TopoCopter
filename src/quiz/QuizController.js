@@ -40,8 +40,15 @@ export default class QuizController {
     const levels = this._levelsData.levels ?? [];
     if (levels.length === 0) return null;
 
-    const id = levelId ?? this._levelsData.default;
-    return levels.find((l) => l.id === id) ?? levels[0];
+    if (levelId != null) {
+      const found = levels.find((l) => l.id === levelId);
+      if (found) return found;
+      // Unknown levelId — retry with the configured default before giving up
+      const defaultLevel = levels.find((l) => l.id === this._levelsData.default);
+      return defaultLevel ?? levels[0];
+    }
+
+    return levels.find((l) => l.id === this._levelsData.default) ?? levels[0];
   }
 
   // ── Pool helpers ──────────────────────────────────────────────────────────

@@ -58,6 +58,14 @@ describe('QuizController', () => {
       expect(qc.resolveLevel('nope').id).toBe('level-1');
     });
 
+    it('falls back to configured default (not levels[0]) when id is unknown', () => {
+      // level-2 is the default but NOT the first level — proves the retry
+      // goes through the configured default rather than blindly picking levels[0]
+      const data = { default: 'level-2', levels: LEVELS.levels };
+      const qc = new QuizController(TARGETS, data);
+      expect(qc.resolveLevel('nope').id).toBe('level-2');
+    });
+
     it('returns null when no levels are defined', () => {
       const qc = new QuizController(TARGETS, { levels: [] });
       expect(qc.resolveLevel(null)).toBeNull();

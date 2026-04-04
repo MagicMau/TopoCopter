@@ -443,7 +443,6 @@ export default class HelicopterScene extends MapScene {
     this._hoverDetector = new HoverDetector({
       hoverTime:  level?.hoverTime ?? 2000,
       onProgress: (progress) => {
-        this._targetVisualizer?.updateProgress(progress, 0);
         this._quizHUD?.updateHoverProgress(progress);
       },
       onComplete: () => this._quizController?.advance(),
