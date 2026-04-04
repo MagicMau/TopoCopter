@@ -1,0 +1,148 @@
+const MAP_CONTROLS_COPY =
+  'Drag to pan\nPinch, double-tap, or use the wheel to zoom';
+const HELICOPTER_CONTROLS_COPY =
+  'Tap or click to fly\nHold or drag to steer\nRight-drag, pinch, double-tap, or use the wheel to pan and zoom';
+
+export const PALETTE = Object.freeze({
+  water: 0xf4f7fb,
+  waterVector: 0x8dcdf4,
+  land: 0xd8d8d8,
+  landOverlay: 0xfaf8f3,
+  landVector: 0x90be67,
+  hydroFill: 0xe3f0f8,
+  hydroFillVector: 0x74c2eb,
+  hydroLine: 0x78abc7,
+  hydroLineVector: 0x2f88b7,
+  detailLand: 0xf3ead7,
+  detailLandVector: 0x9ccc79,
+  border: 0x444444,
+  borderStrong: 0x253140,
+  borderVector: 0x30492d,
+  detailBorder: 0x41556c,
+  detailBorderVector: 0x486344,
+  marker: 0xff6b4a,
+  markerRing: 0xffffff,
+  reliefTint: 0xf3f7fa,
+  reliefTintHighZoom: 0xdeebf2,
+  overlayBackground: 'rgba(15, 23, 42, 0.72)',
+  overlayText: '#f8fafc',
+});
+
+export const WORLD_LAYOUT = Object.freeze({
+  WIDTH: 4096,
+  HEIGHT: 2048,
+});
+
+export const WORLD_DEPTHS = Object.freeze({
+  RELIEF: 0,
+  MAP: 1,
+  HYDRO_FILL: 1.6,
+  HYDRO_LINE: 1.8,
+  MAP_BORDER: 2,
+  DETAIL_MAP: 2.5,
+  MARKER: 3,
+  HELICOPTER: 5,
+  OVERLAY: 10,
+});
+
+export const CAMERA_LIMITS = Object.freeze({
+  MAX_ZOOM: 1200,
+  WHEEL_ZOOM_SPEED: 0.0015,
+  DOUBLE_TAP_DELAY: 280,
+  DOUBLE_TAP_DISTANCE: 28,
+  DOUBLE_TAP_ZOOM_FACTOR: 1.6,
+});
+
+export const CAMERA_FOLLOW = Object.freeze({
+  FOLLOW_LAG: 0.12,
+  FOLLOW_LERP: 0.12,
+  DEADZONE_WIDTH: 160,
+  DEADZONE_HEIGHT: 120,
+  INPUT_GRACE_MS: 3000,
+  ZOOM_GRACE_MS: 500,
+});
+
+export const MARKER_STYLE = Object.freeze({
+  RADIUS: 8,
+  STROKE_WIDTH: 3,
+  ALPHA: 0.95,
+  MIN_SCALE: 0.12,
+  MAX_SCALE: 6,
+  DEPTH: WORLD_DEPTHS.MARKER,
+});
+
+export const HELICOPTER_STYLE = Object.freeze({
+  DEPTH: WORLD_DEPTHS.HELICOPTER,
+  SCALE_FACTOR: 0.28,
+  MIN_SCALE: 0.55,
+  MAX_SCALE: 2.4,
+});
+
+export const MOVEMENT_STYLE = Object.freeze({
+  MAX_SPEED: 420,
+  ACCELERATION: 880,
+  DECELERATION_RADIUS: 320,
+  STOP_THRESHOLD: 18,
+});
+
+export const ROTATION_STYLE = Object.freeze({
+  TURN_SPEED: 7,
+  MIN_SPEED: 10,
+});
+
+export const MAP_STYLE = Object.freeze({
+  RELIEF_ALPHA: 0.88,
+  RELIEF_MIN_ALPHA: 0.18,
+  RELIEF_FADE_START_MULTIPLIER: 7,
+  RELIEF_FADE_END_MULTIPLIER: 26,
+  LAND_ALPHA: 0.18,
+  LAND_HIGH_ZOOM_ALPHA: 0.38,
+  LAND_VECTOR_ALPHA: 0.82,
+  LAND_EMPHASIS_START_MULTIPLIER: 5,
+  LAND_EMPHASIS_END_MULTIPLIER: 16,
+  BORDER_ALPHA: 0.74,
+  BORDER_HIGH_ZOOM_ALPHA: 1,
+  BORDER_SCREEN_WIDTH: 1,
+  BORDER_EMPHASIS_SCREEN_WIDTH: 1.2,
+  BORDER_EMPHASIS_START_MULTIPLIER: 4.5,
+  BORDER_EMPHASIS_END_MULTIPLIER: 12,
+  GEOJSON_SIMPLIFY_TOLERANCE: 0.005,
+  HYDRO_FILL_ALPHA: 0.18,
+  HYDRO_FILL_HIGH_ZOOM_ALPHA: 0.78,
+  HYDRO_FILL_START_MULTIPLIER: 4.5,
+  HYDRO_FILL_FULL_MULTIPLIER: 11,
+  HYDRO_FILL_GEOJSON_SIMPLIFY_TOLERANCE: 0.0012,
+  HYDRO_LINE_ALPHA: 0.14,
+  HYDRO_LINE_HIGH_ZOOM_ALPHA: 0.72,
+  HYDRO_LINE_SCREEN_WIDTH: 0.7,
+  HYDRO_LINE_EMPHASIS_SCREEN_WIDTH: 1.9,
+  HYDRO_LINE_START_MULTIPLIER: 6.5,
+  HYDRO_LINE_FULL_MULTIPLIER: 15,
+  HYDRO_LINE_GEOJSON_SIMPLIFY_TOLERANCE: 0.0016,
+  DETAIL_FILL_ALPHA: 0.24,
+  DETAIL_FILL_HIGH_ZOOM_ALPHA: 0.34,
+  DETAIL_BORDER_ALPHA: 0.94,
+  DETAIL_BORDER_HIGH_ZOOM_ALPHA: 1,
+  DETAIL_BORDER_SCREEN_WIDTH: 0.9,
+  DETAIL_BORDER_EMPHASIS_SCREEN_WIDTH: 1.05,
+  DETAIL_START_MULTIPLIER: 7,
+  DETAIL_FULL_MULTIPLIER: 20,
+  DETAIL_GEOJSON_SIMPLIFY_TOLERANCE: 0.0018,
+  VECTOR_COLOR_START_MULTIPLIER: 12,
+  VECTOR_COLOR_END_MULTIPLIER: 28,
+});
+
+export const OVERLAY_STYLE = Object.freeze({
+  PADDING: 16,
+  MAX_WIDTH: 320,
+  FONT_FAMILY:
+    'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  FONT_SIZE: '14px',
+  LINE_SPACING: 4,
+});
+
+export const UI_COPY = Object.freeze({
+  CONTROLS: MAP_CONTROLS_COPY,
+  MAP_CONTROLS: MAP_CONTROLS_COPY,
+  HELICOPTER_CONTROLS: HELICOPTER_CONTROLS_COPY,
+});

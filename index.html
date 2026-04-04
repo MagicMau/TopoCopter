@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#eef2f5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="description"
+      content="TopoCopter, a modern Phaser remake of the MSX classic Nederlandse Topografie."
+    />
+    <title>TopoCopter</title>
+    <style>
+      :root {
+        color-scheme: light;
+        background: #eef2f5;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        min-height: 100dvh;
+        overflow: hidden;
+        background: #eef2f5;
+        overscroll-behavior: none;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      #app,
+      #game-root {
+        width: 100%;
+        height: 100%;
+        min-height: 100dvh;
+      }
+
+      #game-root {
+        position: relative;
+        touch-action: none;
+      }
+
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <main id="game-root" role="application" aria-label="TopoCopter"></main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
