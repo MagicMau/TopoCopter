@@ -196,7 +196,7 @@ export default class MapScene extends Phaser.Scene {
         geometryType: 'polygon',
         layerGroup: 'detail',
         renderMode: 'stroke',
-        data: this.cache.json.get(layer.cacheKey),
+        data: this.getPreparedLayerData(layer),
         style: {
           minZoomMultiplier: layer.minZoomMultiplier,
           maxZoomMultiplier: layer.maxZoomMultiplier ?? null,
@@ -274,6 +274,24 @@ export default class MapScene extends Phaser.Scene {
       this.detailMapGraphics.clear();
       this.detailMapGraphics.setVisible(this.detailLayerRenderers.length > 0);
     }
+  }
+
+  getPreparedLayerData(layer) {
+    const data = this.cache.json.get(layer.cacheKey);
+    const excludedAdmins = Array.isArray(layer?.excludeAdmins) ? layer.excludeAdmins : [];
+
+    if (!data || excludedAdmins.length === 0 || !Array.isArray(data.features)) {
+      return data;
+    }
+
+    const excludedAdminSet = new Set(excludedAdmins);
+    const filteredFeatures = data.features.filter(
+      (feature) => !excludedAdminSet.has(feature?.properties?.admin),
+    );
+
+    return filteredFeatures.length === data.features.length
+      ? data
+      : { ...data, features: filteredFeatures };
   }
 
   createLayerRenderers(layers) {

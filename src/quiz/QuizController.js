@@ -54,10 +54,15 @@ export default class QuizController {
   // ── Pool helpers ──────────────────────────────────────────────────────────
 
   /**
-   * Collects all targets from the categories listed in `level.categories`,
-   * annotating each with a `category` field.
+   * Collects targets for the quiz.  When `level.fixedTargets` is an array of
+   * pre-resolved target objects (provided by a curated quiz set), those are
+   * used as-is.  Otherwise the existing category-based sampling applies.
    */
   buildPool(level) {
+    if (Array.isArray(level?.fixedTargets) && level.fixedTargets.length > 0) {
+      return level.fixedTargets.map((t) => ({ ...t }));
+    }
+
     const categories = level?.categories ?? [];
     const pool = [];
 
@@ -86,8 +91,11 @@ export default class QuizController {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   /** Resolve level, build sequence, reset score, fire first onTargetChange. */
-  start(levelId) {
-    this.level = this.resolveLevel(levelId);
+  start(levelOrId = this.level) {
+    this.level =
+      levelOrId && typeof levelOrId === 'object'
+        ? levelOrId
+        : this.resolveLevel(levelOrId);
 
     const pool     = this.buildPool(this.level);
     const shuffled = this.shuffle(pool);

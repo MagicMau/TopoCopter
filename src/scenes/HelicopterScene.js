@@ -4,9 +4,12 @@ import Helicopter from '../entities/Helicopter.js';
 import MapScene from './MapScene.js';
 import QuizController from '../quiz/QuizController.js';
 import HoverDetector from '../quiz/HoverDetector.js';
+import SearchTimer from '../quiz/SearchTimer.js';
 import TargetVisualizer from '../quiz/TargetVisualizer.js';
 import QuizHUD from '../ui/QuizHUD.js';
+import ResultOverlay from '../ui/ResultOverlay.js';
 import { DATA_CACHE_KEYS } from './PreloadScene.js';
+import { computeFixedFraming } from '../core/quizFraming.js';
 import {
   CAMERA_FOLLOW,
   HELICOPTER_STYLE,
@@ -42,15 +45,36 @@ export default class HelicopterScene extends MapScene {
     // Quiz subsystems (initialised in create / createSceneSystems)
     this._quizController    = null;
     this._hoverDetector     = null;
+    this._searchTimer       = null;
     this._targetVisualizer  = null;
     this._quizHUD           = null;
+    this._resultOverlay     = null;
     this._activeTargetPoint = null; // { x, y } projected world coords
+
+    // Run state
+    this._runEnded           = false;
+    this._searchTimerDuration = 0;   // ms per target for current quiz set
+    this._currentQuizSetId   = null; // saved for retry
+
+    // Fixed framing (set when a quiz set with fixedFraming:true is loaded)
+    this._fixedFramingActive = false;
+    this._quizSetTargets     = null; // array of resolved target objects
+    this._framingState       = null; // { scrollX, scrollY, zoom, centerX, centerY }
   }
 
   createWorldContent() {
     // Initialise quiz controller first so getHelicopterOptions() can read the
     // level speed before the helicopter is instantiated.
     this._initQuizController();
+
+    // Compute fixed framing before MapScene.create() reads getMinZoom() /
+    // getInitialCameraFocus(), so the camera is placed correctly from the start.
+    if (this._fixedFramingActive && this._quizSetTargets?.length > 0) {
+      this._framingState = this._computeFramingState(
+        this.scale.width,
+        this.scale.height,
+      );
+    }
 
     const spawnPoint = this.getSpawnPoint();
     this.spawnPoint.set(spawnPoint.x, spawnPoint.y);
@@ -76,6 +100,11 @@ export default class HelicopterScene extends MapScene {
     this.setCameraFollowPaused(false);
 
     this._startQuizSystems();
+
+    // Fixed framing: permanently lock camera follow so the framing holds.
+    if (this._fixedFramingActive) {
+      this.setCameraFollowPaused(true);
+    }
   }
 
   destroySceneSystems() {
@@ -88,13 +117,24 @@ export default class HelicopterScene extends MapScene {
     this.freeLookActive = false;
     this.manualCameraUntil = 0;
 
+    this._resultOverlay?.destroy();
     this._quizHUD?.destroy();
     this._targetVisualizer?.destroy();
+    this._resultOverlay    = null;
     this._quizHUD          = null;
     this._targetVisualizer = null;
     this._hoverDetector    = null;
+    this._searchTimer      = null;
     this._quizController   = null;
     this._activeTargetPoint = null;
+
+    this._runEnded            = false;
+    this._searchTimerDuration = 0;
+    this._currentQuizSetId    = null;
+
+    this._fixedFramingActive = false;
+    this._quizSetTargets     = null;
+    this._framingState       = null;
   }
 
   getHelicopterOptions() {
@@ -126,7 +166,7 @@ export default class HelicopterScene extends MapScene {
   }
 
   getInputControllerOptions(baseOptions) {
-    return {
+    const opts = {
       ...baseOptions,
       onCommandDown: (worldX, worldY, pointer) =>
         this.handleCommandDown(worldX, worldY, pointer),
@@ -147,6 +187,16 @@ export default class HelicopterScene extends MapScene {
         };
       },
     };
+
+    if (this._fixedFramingActive && this._framingState) {
+      const z = this._framingState.zoom;
+      opts.zoomLocked = true;
+      opts.dragLocked = true;
+      opts.minZoom = z;
+      opts.maxZoom = z;
+    }
+
+    return opts;
   }
 
   getOverlayText() {
@@ -154,6 +204,10 @@ export default class HelicopterScene extends MapScene {
   }
 
   getInitialCameraFocus() {
+    if (this._fixedFramingActive && this._framingState) {
+      return { x: this._framingState.centerX, y: this._framingState.centerY };
+    }
+
     return this.readPointInto(
       this.helicopter?.getPosition?.(),
       this.helicopterPosition,
@@ -162,6 +216,10 @@ export default class HelicopterScene extends MapScene {
   }
 
   getMinZoom() {
+    if (this._fixedFramingActive && this._framingState) {
+      return this._framingState.zoom;
+    }
+
     return Math.max(
       this.scale.width / WORLD_LAYOUT.WIDTH,
       this.scale.height / WORLD_LAYOUT.HEIGHT,
@@ -169,11 +227,20 @@ export default class HelicopterScene extends MapScene {
   }
 
   getSpawnPoint() {
+    if (this._fixedFramingActive && this._framingState) {
+      return {
+        x: this._framingState.centerX,
+        y: this._framingState.centerY,
+      };
+    }
+
     return this.getMarkerCentroid() ?? super.getInitialCameraFocus();
   }
 
   handleCommandDown(worldX, worldY) {
-    this.resumeCameraFollow();
+    if (!this._fixedFramingActive) {
+      this.resumeCameraFollow();
+    }
     this.setHelicopterTarget(worldX, worldY);
   }
 
@@ -186,6 +253,8 @@ export default class HelicopterScene extends MapScene {
   }
 
   shouldHandleCommand(pointer, worldX, worldY) {
+    if (this._runEnded) return false;
+
     if (!this.isWorldPointWithinBounds(worldX, worldY)) {
       return false;
     }
@@ -251,29 +320,6 @@ export default class HelicopterScene extends MapScene {
     const dy = this._activeTargetPoint.y - worldY;
 
     return dx * dx + dy * dy <= hitRadius * hitRadius ? this._activeTargetPoint : null;
-  }
-
-  getMarkerTargetAt(worldX, worldY) {
-    if (!this.markers?.length) {
-      return null;
-    }
-
-    const hitRadius = this.getMarkerTargetRadius();
-    let closestMarker = null;
-    let closestDistanceSquared = hitRadius * hitRadius;
-
-    this.markers.forEach((marker) => {
-      const dx = marker.x - worldX;
-      const dy = marker.y - worldY;
-      const distanceSquared = dx * dx + dy * dy;
-
-      if (distanceSquared <= closestDistanceSquared) {
-        closestMarker = marker;
-        closestDistanceSquared = distanceSquared;
-      }
-    });
-
-    return closestMarker;
   }
 
   getMarkerTargetRadius() {
@@ -432,9 +478,28 @@ export default class HelicopterScene extends MapScene {
     }
   }
 
+  // Recompute fixed framing on viewport resize so all targets stay visible.
+  handleResize(gameSize) {
+    if (this._fixedFramingActive && this._quizSetTargets?.length > 0) {
+      this._framingState = this._computeFramingState(gameSize.width, gameSize.height);
+    }
+
+    super.handleResize?.(gameSize);
+
+    if (this._fixedFramingActive && this._framingState) {
+      const z = this._framingState.zoom;
+      this.cameras.main.setZoom(z);
+      this.cameras.main.scrollX = this._framingState.scrollX;
+      this.cameras.main.scrollY = this._framingState.scrollY;
+      this.inputController?.setZoomLimits(z, z);
+      this.baseMapMinZoom = z;
+    }
+  }
+
   layoutOverlay() {
     super.layoutOverlay?.();
     this._quizHUD?.layout();
+    this._resultOverlay?.layout();
   }
 
   // ── Quiz subsystem initialisation ─────────────────────────────────────────
@@ -446,6 +511,69 @@ export default class HelicopterScene extends MapScene {
       if (id) return id;
     } catch (_) { /* non-browser env */ }
     return null;
+  }
+
+  _resolveStartQuizSetId() {
+    try {
+      // Scene data passed via this.scene.start('HelicopterScene', { quizSetId })
+      const data = this.sys?.settings?.data ?? this.scene?.settings?.data;
+      if (data?.quizSetId) return data.quizSetId;
+
+      // URL param fallback for direct deep-linking
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('quizset');
+      if (id) return id;
+    } catch (_) { /* non-browser env */ }
+    return null;
+  }
+
+  _resolveQuizSet(quizSetId) {
+    const quizSetsData = this.cache?.json?.get(DATA_CACHE_KEYS.QUIZ_SETS) ?? null;
+    if (!quizSetsData) return null;
+    return (quizSetsData.sets ?? []).find((s) => s.id === quizSetId) ?? null;
+  }
+
+  /**
+   * Build a level-compatible config object from a quiz-set definition, with
+   * all `targets` IDs resolved to full target objects.
+   */
+  _buildLevelFromQuizSet(quizSet, targetsData) {
+    const allTargets = Object.entries(targetsData).flatMap(([cat, items]) =>
+      Array.isArray(items) ? items.map((t) => ({ ...t, category: cat })) : [],
+    );
+    const targetMap = new Map(allTargets.map((t) => [t.id, t]));
+    const fixedTargets = (quizSet.targets ?? [])
+      .map((id) => targetMap.get(id))
+      .filter(Boolean);
+
+    return {
+      id: quizSet.id,
+      name: quizSet.name,
+      description: quizSet.description ?? '',
+      hoverTime: quizSet.hoverTime ?? 3000,
+      helicopterSpeed: quizSet.helicopterSpeed ?? 300,
+      targetRadius: quizSet.targetRadius ?? 60,
+      searchTime: quizSet.searchTime ?? 60,
+      fixedTargets,
+      fixedFraming: Boolean(quizSet.fixedFraming),
+      framingPaddingFactor: quizSet.framingPaddingFactor ?? 0.15,
+    };
+  }
+
+  /** Compute framing state for the given viewport dimensions. */
+  _computeFramingState(viewWidth, viewHeight) {
+    if (!this._quizSetTargets?.length) return null;
+
+    const level = this._quizController?.level;
+    const paddingFactor = level?.framingPaddingFactor ?? 0.15;
+
+    return computeFixedFraming(
+      this._quizSetTargets,
+      (lat, lon) => this.projectLatLon(lat, lon),
+      viewWidth,
+      viewHeight,
+      paddingFactor,
+    );
   }
 
   _initQuizController() {
@@ -460,7 +588,24 @@ export default class HelicopterScene extends MapScene {
       onComplete:     (progress)         => this._onQuizComplete(progress),
     });
 
-    // Resolve level now so getHelicopterOptions() can read the speed
+    // Check for a curated quiz set selected from QuizSelectionScene
+    const quizSetId = this._resolveStartQuizSetId();
+    if (quizSetId) {
+      const quizSet = this._resolveQuizSet(quizSetId);
+      if (quizSet) {
+        const levelConfig = this._buildLevelFromQuizSet(quizSet, targetsData);
+        this._quizController.level = levelConfig;
+        this._currentQuizSetId     = quizSetId;
+
+        if (quizSet.fixedFraming) {
+          this._fixedFramingActive = true;
+          this._quizSetTargets = levelConfig.fixedTargets;
+        }
+        return;
+      }
+    }
+
+    // Fall back to URL-based level selection
     const levelId = this._resolveStartLevelId();
     this._quizController.level = this._quizController.resolveLevel(levelId);
   }
@@ -469,6 +614,14 @@ export default class HelicopterScene extends MapScene {
     if (!this._quizController) return;
 
     const level = this._quizController.level;
+
+    // Per-target search timer (seconds from level config, converted to ms)
+    const searchTimeSecs = level?.searchTime ?? 60;
+    this._searchTimerDuration = searchTimeSecs * 1000;
+
+    this._searchTimer = new SearchTimer({
+      onExpire: () => this._endRunLoss(),
+    });
 
     // Hover detector
     this._hoverDetector = new HoverDetector({
@@ -482,11 +635,12 @@ export default class HelicopterScene extends MapScene {
     // World-space target ring
     this._targetVisualizer = new TargetVisualizer(this);
 
-    // UI overlay
-    this._quizHUD = new QuizHUD(this);
+    // UI overlays
+    this._quizHUD       = new QuizHUD(this);
+    this._resultOverlay = new ResultOverlay(this);
 
     // Start the quiz (fires onTargetChange → _onQuizTargetChange)
-    this._quizController.start(level?.id);
+    this._quizController.start(level);
   }
 
   // ── Quiz callbacks ────────────────────────────────────────────────────────
@@ -506,6 +660,11 @@ export default class HelicopterScene extends MapScene {
 
     this._hoverDetector?.reset();
 
+    // Restart the per-target search timer
+    if (this._searchTimerDuration > 0) {
+      this._searchTimer?.start(this._searchTimerDuration);
+    }
+
     const levelName = this._quizController?.level?.name ?? '';
     this._quizHUD?.showTarget(target.name, levelName, progress);
   }
@@ -516,9 +675,49 @@ export default class HelicopterScene extends MapScene {
   }
 
   _onQuizComplete(progress) {
+    if (this._runEnded) return;
+    this._runEnded = true;
+
+    this._searchTimer?.stop();
     this._targetVisualizer?.hideTarget();
+    this._quizHUD?.hideTimer();
     this._quizHUD?.showComplete(progress.score, progress.total);
     this._hoverDetector = null;
+
+    this._showResult(true, progress.score, progress.total);
+  }
+
+  /** Called by the SearchTimer when time runs out for the current target. */
+  _endRunLoss() {
+    if (this._runEnded) return;
+    this._runEnded = true;
+
+    this._hoverDetector = null;
+    this._searchTimer?.stop();
+    this._targetVisualizer?.hideTarget();
+    this._quizHUD?.hideTimer();
+    this._quizHUD?.hide();
+
+    const progress = this._quizController?.getProgress() ?? { score: 0, total: 0 };
+    this._showResult(false, progress.score, progress.total);
+  }
+
+  _showResult(won, score, total) {
+    this._resultOverlay?.show({
+      won,
+      score,
+      total,
+      onRetry: () => {
+        if (this._currentQuizSetId) {
+          this.scene.restart({ quizSetId: this._currentQuizSetId });
+        } else {
+          this.scene.restart();
+        }
+      },
+      onChoose: () => {
+        this.scene.start('QuizSelectionScene');
+      },
+    });
   }
 
   enterFreeLook() {
@@ -555,6 +754,11 @@ export default class HelicopterScene extends MapScene {
   }
 
   isManualCameraActive(now) {
+    // Fixed framing: camera never follows or drifts; always treated as manual.
+    if (this._fixedFramingActive) {
+      return true;
+    }
+
     const cameraGestureActive = Boolean(
       this.inputController?.dragging || this.inputController?.pinching,
     );
@@ -642,6 +846,14 @@ export default class HelicopterScene extends MapScene {
   }
 
   _updateQuiz(delta) {
+    // Tick the search timer even when the hover detector is idle
+    if (this._searchTimer?.isRunning) {
+      this._searchTimer.update(delta);
+      if (this._searchTimer.isRunning) {
+        this._quizHUD?.showTimer(this._searchTimer.getRemaining());
+      }
+    }
+
     if (!this._hoverDetector || !this._activeTargetPoint) return;
 
     const pos = this.helicopter?.getPosition?.();

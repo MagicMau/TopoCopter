@@ -8,8 +8,11 @@ const BG            = PALETTE.overlayBackground;
 const TEXT_COLOR    = PALETTE.overlayText;
 const DIM_COLOR     = '#94a3b8';
 const ACCENT_COLOR  = '#ff6b4a';
+const TIMER_URGENT  = '#ef4444';
 const PROG_BG_COLOR = 0x334155;
 const PROG_FG_COLOR = 0xff6b4a;
+
+const TIMER_URGENT_THRESHOLD_MS = 10_000;
 
 /**
  * UI overlay for the quiz HUD — shown in the top-right corner.
@@ -19,6 +22,7 @@ const PROG_FG_COLOR = 0xff6b4a;
  *   "Vind:"     (small label)
  *   Target name (bold)
  *   Score       "3 / 8"  (accent color)
+ *   Timer       "Tijd: 45s"
  *   Hover bar   ▓▓▓░░░░
  *
  * All display objects are registered via `scene.registerUiObject()` so they:
@@ -35,6 +39,7 @@ export default class QuizHUD {
     this._labelText  = this._text('Vind:', { color: DIM_COLOR, fontSize: '12px' });
     this._targetText = this._text('', { color: TEXT_COLOR,   fontSize: '18px', fontStyle: 'bold' });
     this._scoreText  = this._text('', { color: ACCENT_COLOR, fontSize: '12px' });
+    this._timerText  = this._text('', { color: ACCENT_COLOR, fontSize: '12px' });
     this._progBg     = this._gfx();
     this._progBar    = this._gfx();
 
@@ -54,7 +59,7 @@ export default class QuizHUD {
 
     this._levelText .setText(levelName ?? '').setVisible(Boolean(levelName));
     this._labelText .setVisible(true);
-    this._targetText.setText(targetName ?? '???').setVisible(true);
+    this._targetText.setText(targetName ?? '(onbekend)').setVisible(true);
     this._scoreText .setText(`${score} / ${total}`).setVisible(true);
     this._progBg    .setVisible(true);
     this._progBar   .setVisible(true);
@@ -68,9 +73,33 @@ export default class QuizHUD {
     this._drawBar(Math.max(0, Math.min(1, progress)));
   }
 
+  /**
+   * Update the countdown timer display.
+   * @param {number} remainingMs - remaining milliseconds
+   */
+  showTimer(remainingMs) {
+    if (!this._timerText) return;
+
+    const secs  = Math.ceil(remainingMs / 1000);
+    const color = remainingMs <= TIMER_URGENT_THRESHOLD_MS ? TIMER_URGENT : ACCENT_COLOR;
+
+    this._timerText
+      .setText(`Tijd: ${secs}s`)
+      .setStyle({ color })
+      .setVisible(true);
+
+    this._layout();
+  }
+
+  hideTimer() {
+    this._timerText?.setVisible(false);
+    this._layout();
+  }
+
   showComplete(score, total) {
     this._labelText .setVisible(false);
     this._scoreText .setVisible(false);
+    this._timerText .setVisible(false);
     this._progBg    .setVisible(false);
     this._progBar   .setVisible(false);
     this._targetText.setText(`✓ Klaar!  ${score} / ${total}`).setVisible(true);
@@ -96,6 +125,7 @@ export default class QuizHUD {
     this._labelText  = null;
     this._targetText = null;
     this._scoreText  = null;
+    this._timerText  = null;
     this._progBg     = null;
     this._progBar    = null;
   }
@@ -151,6 +181,7 @@ export default class QuizHUD {
     place(this._labelText);
     place(this._targetText);
     place(this._scoreText);
+    place(this._timerText);
 
     // Progress bar — left-aligned below the text block
     if (this._progBg?.visible) {

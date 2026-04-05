@@ -2,6 +2,15 @@ import usStatesAdmin1Url from './us-states-admin1.geojson?url';
 import europeAdmin1Url from './europe-admin1.geojson?url';
 import northernEuropeAdmin1Url from './northern-europe-admin1.geojson?url';
 
+export const NORTHERN_EUROPE_ADMIN1_COUNTRIES = Object.freeze([
+  'Netherlands',
+  'Belgium',
+  'Luxembourg',
+  'Germany',
+  'Denmark',
+  'France',
+]);
+
 export const DETAIL_LAYER_DEFINITIONS = Object.freeze([
   {
     id: 'us-states-admin1',
@@ -18,6 +27,7 @@ export const DETAIL_LAYER_DEFINITIONS = Object.freeze([
     url: europeAdmin1Url,
     simplifyTolerance: 0.0008,
     minZoomMultiplier: 8,
+    excludeAdmins: NORTHERN_EUROPE_ADMIN1_COUNTRIES,
   },
   {
     id: 'northern-europe-admin1',

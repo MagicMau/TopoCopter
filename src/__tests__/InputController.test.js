@@ -165,3 +165,123 @@ describe('InputController.clampCamera', () => {
     });
   });
 });
+
+// ─── zoomLocked / dragLocked ──────────────────────────────────────────────────
+
+describe('InputController zoom and drag locking', () => {
+  it('zoomLocked defaults to false', () => {
+    const ic = makeInputController();
+    expect(ic.zoomLocked).toBe(false);
+  });
+
+  it('dragLocked defaults to false', () => {
+    const ic = makeInputController();
+    expect(ic.dragLocked).toBe(false);
+  });
+
+  it('accepts zoomLocked: true from options', () => {
+    const ic = makeInputController({ extra: { zoomLocked: true } });
+    expect(ic.zoomLocked).toBe(true);
+  });
+
+  it('accepts dragLocked: true from options', () => {
+    const ic = makeInputController({ extra: { dragLocked: true } });
+    expect(ic.dragLocked).toBe(true);
+  });
+
+  describe('zoomLocked prevents wheel zoom', () => {
+    it('does not change camera zoom on wheel when locked', () => {
+      const cam = makeCamera(0, 0, 1024, 768, 1);
+      const ic = makeInputController({ camera: cam, extra: { zoomLocked: true } });
+      const fakePointer = {
+        x: 512, y: 384,
+        event: { preventDefault: () => {} },
+      };
+      // deltaY > 0 normally zooms out
+      ic.handleWheel(fakePointer, null, 0, 100, 0);
+      expect(cam.zoom).toBe(1); // unchanged
+    });
+
+    it('does change camera zoom on wheel when not locked', () => {
+      const cam = makeCamera(0, 0, 1024, 768, 1);
+      const ic = makeInputController({ camera: cam, extra: { zoomLocked: false } });
+      const fakePointer = {
+        x: 512, y: 384,
+        event: { preventDefault: () => {} },
+      };
+      ic.handleWheel(fakePointer, null, 0, 100, 0);
+      expect(cam.zoom).not.toBe(1); // changed
+    });
+  });
+
+  describe('zoomLocked prevents pinch zoom', () => {
+    it('does not change camera zoom on pinch when locked', () => {
+      const cam = makeCamera(0, 0, 1024, 768, 1);
+      const ic = makeInputController({ camera: cam, extra: { zoomLocked: true } });
+      const pA = { x: 200, y: 300, id: 1, isDown: true, pointerType: 'touch' };
+      const pB = { x: 400, y: 300, id: 2, isDown: true, pointerType: 'touch' };
+      ic.beginPinch(pA, pB);
+      // spread fingers → normally would zoom in
+      ic.updatePinch({ ...pA, x: 100 }, { ...pB, x: 500 });
+      expect(cam.zoom).toBe(1);
+    });
+  });
+
+  describe('dragLocked prevents camera pan', () => {
+    it('does not start a drag when locked', () => {
+      const cam = makeCamera(0, 0, 1024, 768, 1);
+      const ic = makeInputController({ camera: cam, extra: { dragLocked: true } });
+      const pointer = { id: 1, x: 100, y: 100, isDown: true, pointerType: 'mouse' };
+      ic.beginDrag(pointer);
+      expect(ic.dragging).toBe(false);
+    });
+
+    it('allows drag when not locked', () => {
+      const cam = makeCamera(0, 0, 1024, 768, 1);
+      const ic = makeInputController({ camera: cam, extra: { dragLocked: false } });
+      const pointer = { id: 1, x: 100, y: 100, isDown: true, pointerType: 'mouse' };
+      ic.beginDrag(pointer);
+      expect(ic.dragging).toBe(true);
+    });
+
+    it('does not move camera scroll when dragLocked and dragging was somehow started', () => {
+      const cam = makeCamera(500, 500, 1024, 768, 1);
+      const ic = makeInputController({ camera: cam, extra: { dragLocked: false } });
+
+      const pointer = { id: 1, x: 100, y: 100, isDown: true, pointerType: 'mouse' };
+      ic.beginDrag(pointer);
+      expect(ic.dragging).toBe(true);
+
+      // now lock drag mid-session and simulate pointer move
+      ic.dragLocked = true;
+      const movedPointer = { ...pointer, x: 200, y: 200 };
+      ic.handlePointerMove(movedPointer);
+      // scroll should not change
+      expect(cam.scrollX).toBeCloseTo(500);
+      expect(cam.scrollY).toBeCloseTo(500);
+    });
+  });
+
+  describe('combined lock: zoom and drag both locked', () => {
+    it('zoom stays the same across wheel, pinch, and beginDrag', () => {
+      const cam = makeCamera(0, 0, 800, 600, 2);
+      const ic = makeInputController({
+        camera: cam,
+        extra: { zoomLocked: true, dragLocked: true, minZoom: 2, maxZoom: 2 },
+      });
+
+      const fakePointer = { x: 400, y: 300, event: { preventDefault: () => {} } };
+      ic.handleWheel(fakePointer, null, 0, 100, 0);
+      expect(cam.zoom).toBe(2);
+
+      const pA = { x: 200, y: 300, id: 1, isDown: true, pointerType: 'touch' };
+      const pB = { x: 600, y: 300, id: 2, isDown: true, pointerType: 'touch' };
+      ic.beginPinch(pA, pB);
+      ic.updatePinch({ ...pA, x: 100 }, { ...pB, x: 700 });
+      expect(cam.zoom).toBe(2);
+
+      ic.beginDrag({ id: 3, x: 100, y: 100, isDown: true, pointerType: 'mouse' });
+      expect(ic.dragging).toBe(false);
+    });
+  });
+});

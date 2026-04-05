@@ -1,0 +1,152 @@
+{
+  "sets": [
+    {
+      "id": "quiz-west-europa",
+      "name": "West-Europa",
+      "description": "Landen, steden en water van West-Europa",
+      "searchTime": 60,
+      "hoverTime": 3000,
+      "helicopterSpeed": 300,
+      "targetRadius": 60,
+      "fixedFraming": true,
+      "framingPaddingFactor": 0.12,
+      "targets": [
+        "country-netherlands",
+        "country-belgium",
+        "country-germany",
+        "country-france",
+        "city-amsterdam",
+        "city-brussels",
+        "city-berlin",
+        "city-paris",
+        "water-north-sea",
+        "water-english-channel",
+        "water-rhine"
+      ]
+    },
+    {
+      "id": "quiz-noord-europa",
+      "name": "Noord-Europa",
+      "description": "Scandinavische landen, steden en zeeën",
+      "searchTime": 55,
+      "hoverTime": 3000,
+      "helicopterSpeed": 320,
+      "targetRadius": 60,
+      "fixedFraming": true,
+      "framingPaddingFactor": 0.12,
+      "targets": [
+        "country-sweden",
+        "country-norway",
+        "country-denmark",
+        "country-finland",
+        "city-stockholm",
+        "city-oslo",
+        "city-copenhagen",
+        "city-helsinki",
+        "water-baltic-sea",
+        "water-north-sea"
+      ]
+    },
+    {
+      "id": "quiz-zuid-europa",
+      "name": "Zuid-Europa",
+      "description": "Landen, steden en zeeën rondom de Middellandse Zee",
+      "searchTime": 55,
+      "hoverTime": 3000,
+      "helicopterSpeed": 300,
+      "targetRadius": 60,
+      "fixedFraming": true,
+      "framingPaddingFactor": 0.10,
+      "targets": [
+        "country-italy",
+        "country-spain",
+        "country-portugal",
+        "country-greece",
+        "city-rome",
+        "city-madrid",
+        "city-lisbon",
+        "city-athens",
+        "water-mediterranean",
+        "water-adriatic-sea",
+        "water-bay-of-biscay"
+      ]
+    },
+    {
+      "id": "quiz-midden-europa",
+      "name": "Midden-Europa",
+      "description": "Binnenlanden, hoofdsteden en rivieren",
+      "searchTime": 50,
+      "hoverTime": 3000,
+      "helicopterSpeed": 300,
+      "targetRadius": 60,
+      "fixedFraming": true,
+      "framingPaddingFactor": 0.12,
+      "targets": [
+        "country-austria",
+        "country-switzerland",
+        "country-czech",
+        "country-hungary",
+        "country-poland",
+        "city-vienna",
+        "city-zurich",
+        "city-prague",
+        "city-budapest",
+        "city-warsaw",
+        "water-danube",
+        "water-lake-geneva",
+        "area-alps"
+      ]
+    },
+    {
+      "id": "quiz-nederland-omgeving",
+      "name": "Nederland en omgeving",
+      "description": "Gebieden, steden en water rond Nederland",
+      "searchTime": 50,
+      "hoverTime": 3000,
+      "helicopterSpeed": 280,
+      "targetRadius": 55,
+      "fixedFraming": true,
+      "framingPaddingFactor": 0.15,
+      "targets": [
+        "country-netherlands",
+        "country-belgium",
+        "country-germany",
+        "city-amsterdam",
+        "city-rotterdam",
+        "city-brussels",
+        "water-north-sea",
+        "water-rhine",
+        "water-ijsselmeer",
+        "area-veluwe",
+        "area-biesbosch",
+        "area-wadden"
+      ]
+    },
+    {
+      "id": "quiz-rivieren-meren",
+      "name": "Rivieren en meren",
+      "description": "Grote rivieren, meren en zeeën van Europa",
+      "searchTime": 45,
+      "hoverTime": 3000,
+      "helicopterSpeed": 300,
+      "targetRadius": 65,
+      "fixedFraming": true,
+      "framingPaddingFactor": 0.10,
+      "targets": [
+        "water-rhine",
+        "water-danube",
+        "water-lake-geneva",
+        "water-north-sea",
+        "water-baltic-sea",
+        "water-mediterranean",
+        "water-black-sea",
+        "water-adriatic-sea",
+        "water-aegean-sea",
+        "water-bay-of-biscay",
+        "water-english-channel",
+        "water-ijsselmeer",
+        "area-alps"
+      ]
+    }
+  ]
+}

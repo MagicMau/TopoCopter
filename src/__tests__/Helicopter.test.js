@@ -69,6 +69,34 @@ const makeScene = () => ({
   add: { existing: () => {} },
 });
 
+const makePhysicsBody = () => ({
+  velocity: { x: 0, y: 0 },
+  setAllowGravity: vi.fn(function () { return this; }),
+  setMaxVelocity: vi.fn(function () { return this; }),
+  setDrag: vi.fn(function () { return this; }),
+  setDamping: vi.fn(function () { return this; }),
+  setSize: vi.fn(function (width, height) {
+    this.width = width;
+    this.height = height;
+    return this;
+  }),
+  setCollideWorldBounds: vi.fn(function () { return this; }),
+});
+
+const makePhysicsScene = (body = makePhysicsBody()) => ({
+  textures: { exists: () => true },
+  make: { graphics: () => ({}) },
+  add: { existing: () => {} },
+  physics: {
+    add: {
+      existing: (sprite) => {
+        body.gameObject = sprite;
+        sprite.body = body;
+      },
+    },
+  },
+});
+
 // Capture a sequence of events emitted on an object.
 const captureEvents = (emitter, event) => {
   const calls = [];
@@ -258,6 +286,26 @@ describe('Helicopter (fallback-body / no-physics environment)', () => {
       // Velocity must be unaffected — syncHelicopterScale must not stop the helicopter
       expect(heli.fallbackBody.velocity.x).toBe(150);
       expect(heli.fallbackBody.velocity.y).toBe(75);
+    });
+
+    it('resizes a real physics body while keeping velocity intact', () => {
+      const body = makePhysicsBody();
+      body.velocity.x = 150;
+      body.velocity.y = 75;
+
+      const heli = new Helicopter(makePhysicsScene(body), 0, 0);
+      body.setSize.mockClear();
+
+      heli.setVisualScale(0.5);
+
+      expect(body.setSize).toHaveBeenCalledOnce();
+      expect(body.setSize).toHaveBeenCalledWith(
+        heli._physicsWidth / 0.5,
+        heli._physicsHeight / 0.5,
+        true,
+      );
+      expect(body.velocity.x).toBe(150);
+      expect(body.velocity.y).toBe(75);
     });
   });
 });

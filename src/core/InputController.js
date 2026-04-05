@@ -37,6 +37,8 @@ export default class InputController {
       Number.isFinite(commandMoveThreshold) && commandMoveThreshold >= 0
         ? commandMoveThreshold
         : 10;
+    this.zoomLocked = Boolean(options.zoomLocked);
+    this.dragLocked = Boolean(options.dragLocked);
 
     this.commandPointerId = null;
     this.commandStartX = 0;
@@ -83,15 +85,17 @@ export default class InputController {
     if (pointer.pointerType === 'touch' && this.isDoubleTap(pointer)) {
       this.endCommand(pointer, false);
       this.endDrag();
-      const canvasPoint = this.getPointerCanvasPoint(
-        pointer,
-        this.pointerCanvasPoint,
-      );
-      this.zoomTo(
-        this.camera.zoom * this.doubleTapZoomFactor,
-        canvasPoint.x,
-        canvasPoint.y,
-      );
+      if (!this.zoomLocked) {
+        const canvasPoint = this.getPointerCanvasPoint(
+          pointer,
+          this.pointerCanvasPoint,
+        );
+        this.zoomTo(
+          this.camera.zoom * this.doubleTapZoomFactor,
+          canvasPoint.x,
+          canvasPoint.y,
+        );
+      }
       return;
     }
 
@@ -142,6 +146,10 @@ export default class InputController {
       return;
     }
 
+    if (this.dragLocked) {
+      return;
+    }
+
     const deltaX = pointer.x - this.lastPointerX;
     const deltaY = pointer.y - this.lastPointerY;
 
@@ -182,6 +190,10 @@ export default class InputController {
 
     pointer.event?.preventDefault?.();
 
+    if (this.zoomLocked) {
+      return;
+    }
+
     const canvasPoint = this.getPointerCanvasPoint(
       pointer,
       this.pointerCanvasPoint,
@@ -202,6 +214,10 @@ export default class InputController {
   }
 
   beginDrag(pointer) {
+    if (this.dragLocked) {
+      return;
+    }
+
     this.endCommand(pointer, false);
     this.dragging = true;
     this.dragPointerId = pointer.id;
@@ -275,6 +291,10 @@ export default class InputController {
   }
 
   updatePinch(pointerA, pointerB) {
+    if (this.zoomLocked) {
+      return;
+    }
+
     const pinchDistance = Math.max(
       Phaser.Math.Distance.Between(
         pointerA.x,

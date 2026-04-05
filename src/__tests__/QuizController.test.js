@@ -14,6 +14,9 @@ const TARGETS = {
   water: [
     { id: 'w-ns', name: 'Noordzee', lat: 56.0, lon: 3.5 },
   ],
+  areas: [
+    { id: 'a-bies', name: 'De Biesbosch', lat: 51.76, lon: 4.8 },
+  ],
 };
 
 const LEVELS = {
@@ -94,6 +97,17 @@ describe('QuizController', () => {
       expect(cats.has('cities')).toBe(true);
     });
 
+    it('includes area targets when a level requests the areas category', () => {
+      const qc = new QuizController(TARGETS, LEVELS);
+      const pool = qc.buildPool({ categories: ['areas', 'water'] });
+      expect(pool).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'a-bies', category: 'areas' }),
+          expect.objectContaining({ id: 'w-ns', category: 'water' }),
+        ]),
+      );
+    });
+
     it('returns empty array for unknown category', () => {
       const qc = new QuizController(TARGETS, LEVELS);
       expect(qc.buildPool({ categories: ['nonexistent'] })).toHaveLength(0);
@@ -104,6 +118,33 @@ describe('QuizController', () => {
       const pool  = qc.buildPool(qc.resolveLevel('level-1'));
       pool[0].name = 'MODIFIED';
       expect(TARGETS.countries[0].name).toBe('Nederland');
+    });
+
+    it('uses fixedTargets directly when provided, bypassing categories', () => {
+      const fixed = [
+        { id: 'c-nl', name: 'Nederland', lat: 52, lon: 5, category: 'countries' },
+        { id: 'w-ns', name: 'Noordzee',  lat: 56, lon: 3, category: 'water' },
+      ];
+      const qc   = new QuizController(TARGETS, LEVELS);
+      const pool  = qc.buildPool({ fixedTargets: fixed, categories: ['countries'] });
+      // fixedTargets wins — categories are ignored
+      expect(pool).toHaveLength(2);
+      expect(pool[0].id).toBe('c-nl');
+      expect(pool[1].id).toBe('w-ns');
+    });
+
+    it('returns copies of fixedTargets, not the originals', () => {
+      const fixed = [{ id: 'c-nl', name: 'Nederland', lat: 52, lon: 5 }];
+      const qc   = new QuizController(TARGETS, LEVELS);
+      const pool  = qc.buildPool({ fixedTargets: fixed });
+      pool[0].name = 'CHANGED';
+      expect(fixed[0].name).toBe('Nederland');
+    });
+
+    it('falls through to category-based pool when fixedTargets is empty', () => {
+      const qc = new QuizController(TARGETS, LEVELS);
+      const pool = qc.buildPool({ fixedTargets: [], categories: ['countries'] });
+      expect(pool.length).toBe(TARGETS.countries.length);
     });
   });
 
@@ -137,6 +178,30 @@ describe('QuizController', () => {
       qc.start('level-1');
       expect(qc.level.id).toBe('level-1');
       expect(qc._sequence).toHaveLength(2); // targetCount: 2
+    });
+
+    it('accepts a pre-resolved level object without re-resolving through levels data', () => {
+      const qc = new QuizController(TARGETS, LEVELS);
+      const curatedLevel = {
+        id: 'quiz-west',
+        name: 'West-Europa',
+        targetCount: 2,
+        fixedTargets: [
+          { id: 'c-nl', name: 'Nederland', lat: 52.13, lon: 5.29, category: 'countries' },
+          { id: 'w-ns', name: 'Noordzee', lat: 56.0, lon: 3.5, category: 'water' },
+        ],
+      };
+
+      qc.start(curatedLevel);
+
+      expect(qc.level).toBe(curatedLevel);
+      expect(qc._sequence).toHaveLength(2);
+      expect(qc._sequence).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'c-nl' }),
+          expect.objectContaining({ id: 'w-ns' }),
+        ]),
+      );
     });
 
     it('limits sequence to targetCount even if pool is larger', () => {

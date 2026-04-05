@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import BootScene from '../scenes/BootScene.js';
 import PreloadScene from '../scenes/PreloadScene.js';
+import QuizSelectionScene from '../scenes/QuizSelectionScene.js';
 import MapScene from '../scenes/MapScene.js';
 import HelicopterScene from '../scenes/HelicopterScene.js';
 
@@ -40,7 +41,7 @@ const gameConfig = {
   type: Phaser.AUTO,
   parent: 'game-root',
   backgroundColor: '#eef2f5',
-  scene: [BootScene, PreloadScene, MapScene, HelicopterScene],
+  scene: [BootScene, PreloadScene, QuizSelectionScene, MapScene, HelicopterScene],
   physics: {
     default: 'arcade',
     arcade: {
