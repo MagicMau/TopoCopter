@@ -10,6 +10,8 @@ import QuizHUD from '../ui/QuizHUD.js';
 import ResultOverlay from '../ui/ResultOverlay.js';
 import { DATA_CACHE_KEYS } from './PreloadScene.js';
 import { computeFixedFraming } from '../core/quizFraming.js';
+import { getAudioManager } from '../audio/AudioManager.js';
+import { interpolateRotorProfile } from '../audio/audioProfiles.js';
 import {
   CAMERA_FOLLOW,
   HELICOPTER_STYLE,
@@ -60,6 +62,8 @@ export default class HelicopterScene extends MapScene {
     this._fixedFramingActive = false;
     this._quizSetTargets     = null; // array of resolved target objects
     this._framingState       = null; // { scrollX, scrollY, zoom, centerX, centerY }
+
+    this._audioManager       = null;
   }
 
   createWorldContent() {
@@ -94,6 +98,9 @@ export default class HelicopterScene extends MapScene {
     if (this.physics?.world) {
       this.physics.world.setBounds(0, 0, WORLD_LAYOUT.WIDTH, WORLD_LAYOUT.HEIGHT);
     }
+
+    this._audioManager = getAudioManager();
+    this._audioManager.startRotorLoop();
 
     this.cameraController = this.instantiateCameraController();
     this.input.on('wheel', this.handleWheelInteraction, this);
@@ -135,6 +142,9 @@ export default class HelicopterScene extends MapScene {
     this._fixedFramingActive = false;
     this._quizSetTargets     = null;
     this._framingState       = null;
+
+    this._audioManager?.stopRotorLoop();
+    this._audioManager = null;
   }
 
   getHelicopterOptions() {
@@ -238,6 +248,12 @@ export default class HelicopterScene extends MapScene {
   }
 
   handleCommandDown(worldX, worldY) {
+    this._audioManager?.unlock();
+
+    if (this._runEnded) {
+      return;
+    }
+
     if (!this._fixedFramingActive) {
       this.resumeCameraFollow();
     }
@@ -245,6 +261,10 @@ export default class HelicopterScene extends MapScene {
   }
 
   handleCommandMove(worldX, worldY) {
+    if (this._runEnded) {
+      return;
+    }
+
     this.setHelicopterTarget(worldX, worldY);
   }
 
@@ -289,6 +309,10 @@ export default class HelicopterScene extends MapScene {
   }
 
   setHelicopterTarget(worldX, worldY) {
+    if (this._runEnded) {
+      return;
+    }
+
     if (!this.helicopter?.setTarget) {
       return;
     }
@@ -629,7 +653,10 @@ export default class HelicopterScene extends MapScene {
       onProgress: (progress) => {
         this._quizHUD?.updateHoverProgress(progress);
       },
-      onComplete: () => this._quizController?.advance(),
+      onComplete: () => {
+        this._audioManager?.playFoundSound();
+        this._quizController?.advance();
+      },
     });
 
     // World-space target ring
@@ -678,6 +705,9 @@ export default class HelicopterScene extends MapScene {
     if (this._runEnded) return;
     this._runEnded = true;
 
+    this._audioManager?.playWinSound();
+
+    this._stopGameplayInput();
     this._searchTimer?.stop();
     this._targetVisualizer?.hideTarget();
     this._quizHUD?.hideTimer();
@@ -692,6 +722,9 @@ export default class HelicopterScene extends MapScene {
     if (this._runEnded) return;
     this._runEnded = true;
 
+    this._audioManager?.playLossSound();
+
+    this._stopGameplayInput();
     this._hoverDetector = null;
     this._searchTimer?.stop();
     this._targetVisualizer?.hideTarget();
@@ -718,6 +751,13 @@ export default class HelicopterScene extends MapScene {
         this.scene.start('QuizSelectionScene');
       },
     });
+  }
+
+  _stopGameplayInput() {
+    this.helicopter?.clearTarget?.();
+    this.inputController?.endCommand?.(null, false);
+    this.inputController?.endDrag?.();
+    this.inputController?.endPinch?.();
   }
 
   enterFreeLook() {
@@ -837,12 +877,24 @@ export default class HelicopterScene extends MapScene {
 
     this.setCameraFollowPaused(manualCameraActive);
     this.helicopter?.update?.(delta);
+    this._updateRotorAudio();
 
     if (!manualCameraActive) {
       this.cameraController?.update?.(delta);
     }
 
     this._updateQuiz(delta);
+  }
+
+  _updateRotorAudio() {
+    if (!this._audioManager) return;
+    const vel = this.helicopter?.getVelocity?.();
+    const vx = Array.isArray(vel) ? vel[0] : (vel?.x ?? 0);
+    const vy = Array.isArray(vel) ? vel[1] : (vel?.y ?? 0);
+    const speed = Math.hypot(vx, vy);
+    const maxSpeed = this._quizController?.level?.helicopterSpeed ?? MOVEMENT_STYLE.MAX_SPEED;
+    const { freq, gain } = interpolateRotorProfile(speed, maxSpeed);
+    this._audioManager.setRotorProfile(freq, gain);
   }
 
   _updateQuiz(delta) {

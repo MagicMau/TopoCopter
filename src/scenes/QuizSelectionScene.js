@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DATA_CACHE_KEYS } from './PreloadScene.js';
 import { OVERLAY_STYLE, PALETTE } from '../ui/styles.js';
+import { getAudioManager } from '../audio/AudioManager.js';
 
 const CARD_PADDING_X = 20;
 const CARD_PADDING_Y = 14;
@@ -197,6 +198,7 @@ export default class QuizSelectionScene extends Phaser.Scene {
     });
 
     zone.on('pointerdown', (pointer) => {
+      getAudioManager().unlock();
       cardState.pointerId = pointer.id;
       cardState.setColor(CARD_COLOR_ACTIVE);
     });
