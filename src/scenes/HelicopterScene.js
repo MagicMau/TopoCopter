@@ -1235,8 +1235,10 @@ export default class HelicopterScene extends MapScene {
   }
 
   isManualCameraActive(now) {
-    // Fixed framing: camera never follows or drifts; always treated as manual.
-    if (this._fixedFramingActive) {
+    // Fixed framing is usually locked, but portrait cover mode keeps the
+    // helicopter in view by allowing follow unless the player is actively
+    // steering the camera.
+    if (this._fixedFramingActive && this._framingState?.fitMode !== 'cover') {
       return true;
     }
 

@@ -288,6 +288,54 @@ describe('HelicopterScene._applyFixedFramingState', () => {
   });
 });
 
+describe('HelicopterScene.isManualCameraActive', () => {
+  const makeManualCameraScene = (fitMode = 'width', inputControllerOverrides = {}) => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._fixedFramingActive = true;
+    scene._framingState = { fitMode };
+    scene.freeLookActive = false;
+    scene.manualCameraUntil = 0;
+    scene.time = { now: 0 };
+    scene.inputController = {
+      dragging: false,
+      pinching: false,
+      isCommandSteeringActive: vi.fn(() => false),
+      commandSteering: false,
+      ...inputControllerOverrides,
+    };
+    scene.enterFreeLook = vi.fn(function () {
+      this.freeLookActive = true;
+      this.manualCameraUntil = this.time.now + 3000;
+    });
+    scene.resumeCameraFollow = vi.fn(function () {
+      this.freeLookActive = false;
+      this.manualCameraUntil = 0;
+    });
+    return scene;
+  };
+
+  it('keeps landscape fixed framing locked', () => {
+    const scene = makeManualCameraScene('width');
+
+    expect(scene.isManualCameraActive(0)).toBe(true);
+    expect(scene.enterFreeLook).not.toHaveBeenCalled();
+  });
+
+  it('allows follow in portrait cover mode when no camera gesture is active', () => {
+    const scene = makeManualCameraScene('cover');
+
+    expect(scene.isManualCameraActive(0)).toBe(false);
+    expect(scene.enterFreeLook).not.toHaveBeenCalled();
+  });
+
+  it('switches cover mode back to manual camera control while dragging', () => {
+    const scene = makeManualCameraScene('cover', { dragging: true });
+
+    expect(scene.isManualCameraActive(0)).toBe(true);
+    expect(scene.enterFreeLook).toHaveBeenCalled();
+  });
+});
+
 describe('HelicopterScene.handleResize with fixed framing', () => {
   it('locks zoom limits to the framing zoom after resize', () => {
     const scene = makeFramingScene();
