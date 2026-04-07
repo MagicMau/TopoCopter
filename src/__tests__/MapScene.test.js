@@ -7,7 +7,7 @@ vi.mock('phaser', () => ({
 }));
 
 import MapScene from '../scenes/MapScene.js';
-import { MAP_STYLE, WORLD_LAYOUT } from '../ui/styles.js';
+import { MAP_STYLE, WORLD_DEPTHS, WORLD_LAYOUT } from '../ui/styles.js';
 
 const makeScene = (data) => {
   const scene = Object.create(MapScene.prototype);
@@ -128,7 +128,7 @@ describe('MapScene bottom unavailable overlay', () => {
     scene.createBottomUnavailableOverlay();
 
     expect(scene.add.graphics).toHaveBeenCalled();
-    expect(graphics.setDepth).toHaveBeenCalledWith(5.1);
+    expect(graphics.setDepth).toHaveBeenCalledWith(WORLD_DEPTHS.QUIZ_TARGET + 0.5);
     expect(graphics.clear).toHaveBeenCalled();
     expect(graphics.setVisible).toHaveBeenCalledWith(true);
     expect(graphics.fillStyle).toHaveBeenCalledWith(

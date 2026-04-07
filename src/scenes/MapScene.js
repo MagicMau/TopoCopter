@@ -544,7 +544,7 @@ export default class MapScene extends Phaser.Scene {
 
     if (!this.bottomUnavailableGraphics) {
       this.bottomUnavailableGraphics = this.registerWorldObject(
-        this.add.graphics().setDepth(WORLD_DEPTHS.HELICOPTER + 0.1),
+        this.add.graphics().setDepth(WORLD_DEPTHS.QUIZ_TARGET + 0.5),
       );
     }
 
