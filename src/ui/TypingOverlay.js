@@ -26,15 +26,22 @@
  * to build the check function in the calling scene.
  */
 
+import { getAudioManager } from '../audio/AudioManager.js';
+
 const FONT = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
 const CSS = {
   backdrop: [
-    'position:absolute',
-    'inset:0',
+    'position:fixed',
+    'left:0',
+    'top:0',
+    'width:var(--app-viewport-width,100vw)',
+    'height:var(--app-viewport-height,100dvh)',
+    'padding:calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px)',
     'display:flex',
-    'align-items:center',
+    'align-items:flex-start',
     'justify-content:center',
+    'overflow:auto',
     'background:rgba(15,23,42,0.55)',
     'z-index:9999',
   ].join(';'),
@@ -49,6 +56,7 @@ const CSS = {
     'display:flex',
     'flex-direction:column',
     'gap:14px',
+    'margin-top:clamp(16px, 10vh, 96px)',
     `box-shadow:0 8px 32px rgba(0,0,0,0.60)`,
   ].join(';'),
 
@@ -104,6 +112,7 @@ export default class TypingOverlay {
 
     this._boundKeydown = this._onKeydown.bind(this);
     this._boundInput   = this._onInput.bind(this);
+    this._boundUnlockAudio = this._unlockAudio.bind(this);
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -203,6 +212,10 @@ export default class TypingOverlay {
 
     document.addEventListener('keydown', this._boundKeydown);
     input.addEventListener('input', this._boundInput);
+    input.addEventListener('focus', this._boundUnlockAudio);
+    backdrop.addEventListener('pointerdown', this._boundUnlockAudio);
+    backdrop.addEventListener('touchstart', this._boundUnlockAudio, { passive: true });
+    backdrop.addEventListener('mousedown', this._boundUnlockAudio);
   }
 
   _submit() {
@@ -240,6 +253,8 @@ export default class TypingOverlay {
   }
 
   _onKeydown(e) {
+    this._unlockAudio();
+
     if (e.key === 'Enter') {
       e.preventDefault();
       this._submit();
@@ -269,7 +284,10 @@ export default class TypingOverlay {
     ].join(';');
     btn.addEventListener('mouseover', () => { btn.style.background = '#ea5a3a'; });
     btn.addEventListener('mouseout',  () => { btn.style.background = '#ff6b4a'; });
-    btn.addEventListener('click', onClick);
+    btn.addEventListener('click', () => {
+      this._unlockAudio();
+      onClick();
+    });
     return btn;
   }
 
@@ -295,15 +313,26 @@ export default class TypingOverlay {
       btn.style.background = 'transparent';
       btn.style.color      = '#94a3b8';
     });
-    btn.addEventListener('click', onClick);
+    btn.addEventListener('click', () => {
+      this._unlockAudio();
+      onClick();
+    });
     return btn;
+  }
+
+  _unlockAudio() {
+    getAudioManager().unlock();
   }
 
   _teardown() {
     document.removeEventListener('keydown', this._boundKeydown);
     if (this._input) {
       this._input.removeEventListener('input', this._boundInput);
+      this._input.removeEventListener('focus', this._boundUnlockAudio);
     }
+    this._root?.removeEventListener('pointerdown', this._boundUnlockAudio);
+    this._root?.removeEventListener('touchstart', this._boundUnlockAudio);
+    this._root?.removeEventListener('mousedown', this._boundUnlockAudio);
     this._root?.remove();
     this._root  = null;
     this._input = null;

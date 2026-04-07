@@ -40,7 +40,6 @@ import {
   MOVEMENT_STYLE,
   QUIZ_TARGET_STYLE,
   ROTATION_STYLE,
-  UI_COPY,
   WORLD_DEPTHS,
   WORLD_LAYOUT,
 } from '../ui/styles.js';
@@ -304,7 +303,7 @@ export default class HelicopterScene extends MapScene {
   }
 
   getOverlayText() {
-    return UI_COPY.HELICOPTER_CONTROLS ?? super.getOverlayText();
+    return null;
   }
 
   getProjectionOptions() {
@@ -1093,9 +1092,9 @@ export default class HelicopterScene extends MapScene {
       // target ring or the answer text, and do not start the search timer.
       this._targetVisualizer?.hideTarget();
       this._answerRevealActive    = true; // blocks all manual input
-      this._spellingAutoFlyActive = true;
+      this._spellingAutoFlyActive = Boolean(pt && this.helicopter?.setTarget);
 
-      if (pt && this.helicopter?.setTarget) {
+      if (this._spellingAutoFlyActive) {
         this.helicopter.setTarget(pt.x, pt.y, {
           stopThreshold: this.getPreciseArrivalThreshold(),
           snapOnArrival: true,
@@ -1103,6 +1102,10 @@ export default class HelicopterScene extends MapScene {
       }
 
       this._quizHUD?.showSpellingTarget(target.category ?? '', levelName, progress);
+
+      if (!this._spellingAutoFlyActive) {
+        this._showSpellingPrompt();
+      }
     } else {
       // Locate mode: show target ring, timer, and the answer text in the HUD.
       if (pt) {
@@ -1539,7 +1542,7 @@ export default class HelicopterScene extends MapScene {
     if (!this._typingOverlay) {
       try {
         const host =
-          document?.getElementById?.('game-root') ?? document?.body ?? null;
+          document?.body ?? document?.getElementById?.('game-root') ?? null;
         if (host) {
           this._typingOverlay = new TypingOverlay(host);
         }

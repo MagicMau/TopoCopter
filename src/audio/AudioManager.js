@@ -163,7 +163,7 @@ export class AudioManager {
   startRotorLoop() {
     this._rotorRequested = true;
     if (this._rotorNodes) return;
-    const ctx = this._ensureContext();
+    const ctx = this._ctx;
     if (!ctx || ctx.state !== 'running') return;
 
     // Loop a single synthesised blade-chop cycle
@@ -282,7 +282,7 @@ export class AudioManager {
    * @param {Array<{freq: number, startDelay: number, duration: number, gain: number}>} tones
    */
   _playTones(tones) {
-    const ctx = this._ensureContext();
+    const ctx = this._ctx;
     if (!ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
     for (const { freq, startDelay, duration, gain: peakGain } of tones) {

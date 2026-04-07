@@ -174,6 +174,20 @@ describe('AudioManager.startRotorLoop', () => {
     expect(am._rotorNodes).toBeNull();
   });
 
+  it('does not create an AudioContext before unlock is called', () => {
+    const am = new AudioManager();
+    const audioCtor = vi.fn(() => makeMockContext('running'));
+    vi.stubGlobal('window', { AudioContext: audioCtor });
+
+    am.startRotorLoop();
+
+    expect(audioCtor).not.toHaveBeenCalled();
+    expect(am._rotorRequested).toBe(true);
+    expect(am._rotorNodes).toBeNull();
+
+    vi.unstubAllGlobals();
+  });
+
   it('sets loop = true on the buffer source', () => {
     const am  = new AudioManager();
     const ctx = makeMockContext('running');

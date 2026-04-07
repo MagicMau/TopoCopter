@@ -1,6 +1,15 @@
 import { getAudioManager } from './AudioManager.js';
 
-const GESTURE_EVENTS = ['pointerdown', 'touchstart', 'mousedown', 'keydown'];
+const GESTURE_EVENTS = [
+  'pointerdown',
+  'pointerup',
+  'touchstart',
+  'touchend',
+  'mousedown',
+  'mouseup',
+  'click',
+  'keydown',
+];
 const EVENT_OPTIONS = { capture: true, passive: true };
 
 let cleanupBootstrapUnlock = null;

@@ -530,6 +530,13 @@ describe('HelicopterScene._resolveStartPlayMode', () => {
   });
 });
 
+describe('HelicopterScene.getOverlayText', () => {
+  it('hides the help overlay in the helicopter scene', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    expect(scene.getOverlayText()).toBeNull();
+  });
+});
+
 // ── Spelling mode ──────────────────────────────────────────────────────────────
 
 describe('HelicopterScene._checkSpellingArrival', () => {
@@ -718,6 +725,29 @@ describe('HelicopterScene._onQuizTargetChange (spelling mode)', () => {
     );
   });
 
+  it('shows the typing prompt immediately when a spelling target cannot be projected', () => {
+    const scene = makeScene();
+    scene.projectLatLon = vi.fn(() => null);
+    scene._showSpellingPrompt = vi.fn();
+
+    scene._onQuizTargetChange(
+      {
+        id: 'city-helsinki',
+        name: 'Helsinki',
+        lat: 60.17,
+        lon: 24.94,
+        category: 'cities',
+        questionMode: 'spelling',
+      },
+      { score: 0, total: 5, current: 0 },
+    );
+
+    expect(scene._answerRevealActive).toBe(true);
+    expect(scene._spellingAutoFlyActive).toBe(false);
+    expect(scene.helicopter.setTarget).not.toHaveBeenCalled();
+    expect(scene._showSpellingPrompt).toHaveBeenCalled();
+  });
+
   it('uses locate flow for normal locate questions', () => {
     const scene = makeScene();
 
@@ -744,12 +774,23 @@ describe('HelicopterScene._onQuizTargetChange (spelling mode)', () => {
 });
 
 describe('HelicopterScene._updateQuiz (spelling mode)', () => {
+  it('checks spelling arrival while the helicopter is auto-flying', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._targetRevealEffect = { update: vi.fn() };
+    scene._answerRevealActive = true;
+    scene._spellingAutoFlyActive = true;
+    scene._checkSpellingArrival = vi.fn();
+
+    scene._updateQuiz(16);
+
+    expect(scene._checkSpellingArrival).toHaveBeenCalled();
+  });
+
   it('does not tick the search timer while waiting for a typed answer', () => {
     const scene = Object.create(HelicopterScene.prototype);
     scene._targetRevealEffect = { update: vi.fn() };
     scene._answerRevealActive = true;
     scene._spellingAutoFlyActive = false;
-    scene._checkSpellingArrival = vi.fn();
     scene._searchTimer = {
       isRunning: true,
       update: vi.fn(),
@@ -759,7 +800,6 @@ describe('HelicopterScene._updateQuiz (spelling mode)', () => {
 
     scene._updateQuiz(16);
 
-    expect(scene._checkSpellingArrival).not.toHaveBeenCalled();
     expect(scene._searchTimer.update).not.toHaveBeenCalled();
     expect(scene._quizHUD.showTimer).not.toHaveBeenCalled();
   });
