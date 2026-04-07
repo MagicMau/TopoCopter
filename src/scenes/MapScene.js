@@ -48,6 +48,7 @@ export default class MapScene extends Phaser.Scene {
     this.hydroFillLayerRenderers = [];
     this.hydroLineLayerRenderers = [];
     this.unavailableRegionGraphics = null;
+    this.reliefBackgroundImage = null;
   }
 
   create() {
@@ -66,6 +67,7 @@ export default class MapScene extends Phaser.Scene {
     this.hydroFillLayerRenderers = [];
     this.hydroLineLayerRenderers = [];
     this.unavailableRegionGraphics = null;
+    this.reliefBackgroundImage = null;
     this.projection = new Projection().init(
       WORLD_LAYOUT.WIDTH,
       WORLD_LAYOUT.HEIGHT,
@@ -208,6 +210,23 @@ export default class MapScene extends Phaser.Scene {
       return null;
     }
 
+    const clipBounds = this.getGeoClipBounds();
+
+    // When a projection restricts the view to a sub-region, add a dimmed copy
+    // of the full world behind the main relief so the area outside the
+    // projection bounds shows terrain instead of plain background colour.
+    if (clipBounds) {
+      this.reliefBackgroundImage = this.registerWorldObject(
+        this.add
+          .image(0, 0, DATA_CACHE_KEYS.WORLD_RELIEF)
+          .setOrigin(0, 0)
+          .setDisplaySize(WORLD_LAYOUT.WIDTH, WORLD_LAYOUT.HEIGHT)
+          .setAlpha(MAP_STYLE.RELIEF_BACKGROUND_ALPHA)
+          .setTint(PALETTE.reliefTint)
+          .setDepth(WORLD_DEPTHS.RELIEF - 0.1),
+      );
+    }
+
     const reliefImage = this.registerWorldObject(
       this.add
         .image(
@@ -220,7 +239,6 @@ export default class MapScene extends Phaser.Scene {
         .setTint(PALETTE.reliefTint)
         .setDepth(WORLD_DEPTHS.RELIEF),
     );
-    const clipBounds = this.getGeoClipBounds();
 
     if (clipBounds && typeof reliefImage?.setCrop === 'function') {
       const texture = this.textures.get(DATA_CACHE_KEYS.WORLD_RELIEF);
@@ -529,6 +547,55 @@ export default class MapScene extends Phaser.Scene {
     };
   }
 
+  getLeftUnavailableOverlayBounds() {
+    const clipBounds = this.getGeoClipBounds();
+
+    if (!clipBounds) {
+      return null;
+    }
+
+    const projection = this.projection;
+    const worldHeight = Number.isFinite(projection?.height) ? projection.height : WORLD_LAYOUT.HEIGHT;
+    const offsetX = Number.isFinite(projection?.offsetX) ? projection.offsetX : null;
+
+    if (!Number.isFinite(offsetX) || offsetX <= 0) {
+      return null;
+    }
+
+    return {
+      x: 0,
+      y: 0,
+      width: offsetX,
+      height: worldHeight,
+    };
+  }
+
+  getRightUnavailableOverlayBounds() {
+    const clipBounds = this.getGeoClipBounds();
+
+    if (!clipBounds) {
+      return null;
+    }
+
+    const projection = this.projection;
+    const worldWidth = Number.isFinite(projection?.width) ? projection.width : WORLD_LAYOUT.WIDTH;
+    const worldHeight = Number.isFinite(projection?.height) ? projection.height : WORLD_LAYOUT.HEIGHT;
+    const overlayLeft = Number.isFinite(projection?.offsetX) && Number.isFinite(projection?.mapWidth)
+      ? projection.offsetX + projection.mapWidth
+      : null;
+
+    if (!Number.isFinite(overlayLeft) || overlayLeft >= worldWidth) {
+      return null;
+    }
+
+    return {
+      x: overlayLeft,
+      y: 0,
+      width: worldWidth - overlayLeft,
+      height: worldHeight,
+    };
+  }
+
   getBottomUnavailableOverlayBounds() {
     const clipBounds = this.getGeoClipBounds();
 
@@ -558,9 +625,11 @@ export default class MapScene extends Phaser.Scene {
   createUnavailableRegionOverlay() {
     const topBounds = this.getTopUnavailableOverlayBounds();
     const bottomBounds = this.getBottomUnavailableOverlayBounds();
+    const leftBounds = this.getLeftUnavailableOverlayBounds();
+    const rightBounds = this.getRightUnavailableOverlayBounds();
     const canDraw = this.add && typeof this.add.graphics === 'function';
 
-    if ((!topBounds && !bottomBounds) || !canDraw) {
+    if ((!topBounds && !bottomBounds && !leftBounds && !rightBounds) || !canDraw) {
       this.unavailableRegionGraphics?.clear?.();
       this.unavailableRegionGraphics?.setVisible?.(false);
       return;
@@ -582,6 +651,14 @@ export default class MapScene extends Phaser.Scene {
 
     if (bottomBounds) {
       this.unavailableRegionGraphics.fillRect(bottomBounds.x, bottomBounds.y, bottomBounds.width, bottomBounds.height);
+    }
+
+    if (leftBounds) {
+      this.unavailableRegionGraphics.fillRect(leftBounds.x, leftBounds.y, leftBounds.width, leftBounds.height);
+    }
+
+    if (rightBounds) {
+      this.unavailableRegionGraphics.fillRect(rightBounds.x, rightBounds.y, rightBounds.width, rightBounds.height);
     }
   }
 
