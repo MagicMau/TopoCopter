@@ -307,15 +307,27 @@ describe('AudioManager.unlock', () => {
   it('resumes a suspended context and starts a pending rotor loop', async () => {
     const am  = new AudioManager();
     const ctx = makeMockContext('suspended');
-    ctx.resume = vi.fn(() => {
-      ctx.state = 'running';
-      return Promise.resolve();
-    });
+    let resolveResume;
+    ctx.resume = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveResume = () => {
+            ctx.state = 'running';
+            resolve();
+          };
+        }),
+    );
 
     am._ctx = ctx;
     am._rotorRequested = true;
 
-    await expect(am.unlock()).resolves.toBe(true);
+    const unlockPromise = am.unlock();
+
+    expect(ctx.createBufferSource).not.toHaveBeenCalled();
+
+    resolveResume();
+
+    await expect(unlockPromise).resolves.toBe(true);
 
     expect(ctx.resume).toHaveBeenCalledOnce();
     expect(ctx.createBufferSource).toHaveBeenCalledOnce();
