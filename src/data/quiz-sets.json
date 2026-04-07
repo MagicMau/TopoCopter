@@ -9,7 +9,7 @@
       "helicopterSpeed": 300,
       "targetRadius": 60,
       "fixedFraming": true,
-      "framingPaddingFactor": 0.12,
+      "framingPaddingFactor": 0.15,
       "targets": [
         "country-netherlands",
         "country-belgium",
@@ -27,24 +27,31 @@
     {
       "id": "quiz-noord-europa",
       "name": "Noord-Europa",
-      "description": "Scandinavische landen, steden en zeeën",
-      "searchTime": 55,
+      "description": "Landen, steden, wateren en gebieden van Noord-Europa",
+      "searchTime": 60,
       "hoverTime": 3000,
       "helicopterSpeed": 320,
       "targetRadius": 60,
       "fixedFraming": true,
-      "framingPaddingFactor": 0.12,
+      "framingPaddingFactor": 0.08,
       "targets": [
-        "country-sweden",
+        "country-iceland",
         "country-norway",
         "country-denmark",
+        "country-sweden",
         "country-finland",
+        "country-estonia",
+        "country-latvia",
+        "country-lithuania",
         "city-stockholm",
         "city-oslo",
         "city-copenhagen",
         "city-helsinki",
+        "water-arctic-ocean",
+        "water-atlantic-ocean",
         "water-baltic-sea",
-        "water-north-sea"
+        "water-north-sea",
+        "area-scandinavia"
       ]
     },
     {
@@ -56,7 +63,7 @@
       "helicopterSpeed": 300,
       "targetRadius": 60,
       "fixedFraming": true,
-      "framingPaddingFactor": 0.10,
+      "framingPaddingFactor": 0.15,
       "targets": [
         "country-italy",
         "country-spain",
@@ -80,7 +87,7 @@
       "helicopterSpeed": 300,
       "targetRadius": 60,
       "fixedFraming": true,
-      "framingPaddingFactor": 0.12,
+      "framingPaddingFactor": 0.15,
       "targets": [
         "country-austria",
         "country-switzerland",
@@ -131,7 +138,7 @@
       "helicopterSpeed": 300,
       "targetRadius": 65,
       "fixedFraming": true,
-      "framingPaddingFactor": 0.10,
+      "framingPaddingFactor": 0.15,
       "targets": [
         "water-rhine",
         "water-danube",

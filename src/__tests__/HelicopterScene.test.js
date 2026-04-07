@@ -208,7 +208,7 @@ const makeFramingScene = () => {
   };
   scene.cameras = { main: camera };
   scene.uiCamera = { setViewport: vi.fn(), setSize: vi.fn() };
-  scene.inputController = { setZoomLimits: vi.fn() };
+  scene.inputController = { setZoomLimits: vi.fn(), clampCamera: vi.fn() };
   scene.overlayText = null;
   scene.syncZoomResponsiveElements = vi.fn();
   scene.layoutOverlay = vi.fn();
@@ -237,6 +237,7 @@ describe('HelicopterScene._applyFixedFramingState', () => {
     expect(scene.cameras.main.scrollX).toBe(300);
     expect(scene.cameras.main.scrollY).toBe(150);
     expect(scene.inputController.setZoomLimits).toHaveBeenCalledWith(2.5, 2.5);
+    expect(scene.inputController.clampCamera).toHaveBeenCalled();
     expect(scene.baseMapMinZoom).toBe(2.5);
   });
 

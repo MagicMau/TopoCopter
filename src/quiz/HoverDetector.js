@@ -50,22 +50,31 @@ export default class HoverDetector {
   // ── Per-frame update ──────────────────────────────────────────────────────
 
   /**
-   * @param {number} delta       - frame delta in ms
-   * @param {number} helicopterX - helicopter world-x
-   * @param {number} helicopterY - helicopter world-y
-   * @param {number} targetX     - target world-x
-   * @param {number} targetY     - target world-y
-   * @param {number} radius      - hover radius in world pixels
+   * @param {number}   delta        - frame delta in ms
+   * @param {number}   helicopterX  - helicopter world-x
+   * @param {number}   helicopterY  - helicopter world-y
+   * @param {number}   targetX      - target world-x (used only for fallback radius check)
+   * @param {number}   targetY      - target world-y (used only for fallback radius check)
+   * @param {number}   radius       - hover radius in world pixels (fallback check)
+   * @param {function} [isInZoneFn] - optional override: `(heliX, heliY) => boolean`.
+   *   When provided, replaces the default radius check.  Use this for polygon- or
+   *   line-based hit testing (pass a closure that converts world coords to lat/lon
+   *   and tests against the resolved geometry).
    * @returns {{ hovering: boolean, progress: number, complete: boolean }}
    */
-  update(delta, helicopterX, helicopterY, targetX, targetY, radius) {
+  update(delta, helicopterX, helicopterY, targetX, targetY, radius, isInZoneFn = null) {
     if (this._complete) {
       return { hovering: false, progress: 1, complete: true };
     }
 
-    const dx    = helicopterX - targetX;
-    const dy    = helicopterY - targetY;
-    const inZone = (dx * dx + dy * dy) <= (radius * radius);
+    let inZone;
+    if (typeof isInZoneFn === 'function') {
+      inZone = Boolean(isInZoneFn(helicopterX, helicopterY));
+    } else {
+      const dx = helicopterX - targetX;
+      const dy = helicopterY - targetY;
+      inZone = (dx * dx + dy * dy) <= (radius * radius);
+    }
 
     if (inZone) {
       this._elapsed += delta;

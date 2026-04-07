@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { computeTargetBounds, computeFixedFraming } from '../core/quizFraming.js';
+import {
+  computeTargetBounds,
+  computeTargetBoundsExpanded,
+  computeFixedFraming,
+  computeFixedFramingFromBounds,
+} from '../core/quizFraming.js';
 
 // Simple equirectangular-style projection for tests:
 // world is 4096 × 2048, lon [-180..180] → x [0..4096], lat [90..-90] → y [0..2048]
@@ -184,5 +189,94 @@ describe('computeFixedFraming', () => {
     const result = computeFixedFraming(targets, projectFn, 2000, 1500, 0.1);
     expect(result).not.toBeNull();
     expect(result.zoom).toBeGreaterThan(0);
+  });
+});
+
+// ── computeTargetBoundsExpanded ───────────────────────────────────────────────
+
+describe('computeTargetBoundsExpanded', () => {
+  it('returns same result as computeTargetBounds when getTargetBbox returns null', () => {
+    const targets = [{ lat: 52, lon: 4 }, { lat: 51, lon: 6 }];
+    const plain = computeTargetBounds(targets, projectFn);
+    const expanded = computeTargetBoundsExpanded(targets, projectFn, () => null);
+    expect(expanded).toEqual(plain);
+  });
+
+  it('expands bounds when a target bbox is provided', () => {
+    const targets = [{ lat: 52, lon: 5 }];
+    // Provide a bbox that is larger than the centroid point
+    const getTargetBbox = () => ({ minLon: 4, maxLon: 6, minLat: 51, maxLat: 53 });
+    const plain = computeTargetBounds(targets, projectFn);
+    const expanded = computeTargetBoundsExpanded(targets, projectFn, getTargetBbox);
+
+    // The expanded bbox should cover a larger area than the centroid-only bounds
+    expect(expanded.minX).toBeLessThanOrEqual(plain.minX);
+    expect(expanded.maxX).toBeGreaterThanOrEqual(plain.maxX);
+    expect(expanded.minY).toBeLessThanOrEqual(plain.minY);
+    expect(expanded.maxY).toBeGreaterThanOrEqual(plain.maxY);
+  });
+
+  it('falls back to centroid when getTargetBbox returns null for that target', () => {
+    const targets = [
+      { lat: 52, lon: 5 },  // gets a bbox
+      { lat: 45, lon: 10 }, // no bbox
+    ];
+    const plain = computeTargetBounds(targets, projectFn);
+    const getTargetBbox = (t) =>
+      t.lat === 52 ? { minLon: 4, maxLon: 6, minLat: 51, maxLat: 53 } : null;
+    const expanded = computeTargetBoundsExpanded(targets, projectFn, getTargetBbox);
+
+    // The second target's centroid must be within the expanded bounds
+    const ptB = projectFn(45, 10);
+    expect(expanded.minX).toBeLessThanOrEqual(ptB.x);
+    expect(expanded.maxX).toBeGreaterThanOrEqual(ptB.x);
+  });
+
+  it('returns null for empty target list', () => {
+    expect(computeTargetBoundsExpanded([], projectFn, () => null)).toBeNull();
+  });
+});
+
+describe('computeFixedFraming with getTargetBbox', () => {
+  it('produces a wider framing when geometry bbox is used', () => {
+    const targets = [{ lat: 60, lon: 25 }]; // single centroid target
+    const plain = computeFixedFraming(targets, projectFn, 800, 600, 0);
+
+    // Provide a bbox spanning 10° in each direction
+    const getTargetBbox = () => ({ minLon: 15, maxLon: 35, minLat: 50, maxLat: 70 });
+    const expanded = computeFixedFraming(targets, projectFn, 800, 600, 0, Infinity, getTargetBbox);
+
+    // Expanded framing must be zoomed out more (lower zoom value)
+    expect(expanded.zoom).toBeLessThan(plain.zoom);
+  });
+
+  it('result matches plain framing when getTargetBbox is null', () => {
+    const targets = [{ lat: 52, lon: 5 }, { lat: 45, lon: 15 }];
+    const plain = computeFixedFraming(targets, projectFn, 800, 600, 0.1);
+    const withNull = computeFixedFraming(targets, projectFn, 800, 600, 0.1, Infinity, null);
+    expect(withNull).toEqual(plain);
+  });
+});
+
+describe('computeFixedFramingFromBounds', () => {
+  it('fits the provided bounds without needing target centroids', () => {
+    const bounds = {
+      minX: 100,
+      maxX: 500,
+      minY: 200,
+      maxY: 600,
+    };
+
+    const result = computeFixedFramingFromBounds(bounds, 800, 600, 0.1);
+
+    expect(result.centerX).toBe(300);
+    expect(result.centerY).toBe(400);
+    expect(result.zoom).toBeCloseTo(600 / 480, 5);
+  });
+
+  it('returns null for invalid bounds', () => {
+    expect(
+      computeFixedFramingFromBounds({ minX: 0, maxX: Number.NaN, minY: 0, maxY: 10 }, 800, 600),
+    ).toBeNull();
   });
 });

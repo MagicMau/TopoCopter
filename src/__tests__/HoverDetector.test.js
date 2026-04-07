@@ -82,6 +82,13 @@ describe('HoverDetector', () => {
       const result = hd.update(100, 25, 25, 0, 0, 50);
       expect(result.hovering).toBe(true);
     });
+
+    it('supports custom hit zones via isInZoneFn', () => {
+      const hd = new HoverDetector({ hoverTime: 1000 });
+      const result = hd.update(100, 999, 999, 0, 0, 0, () => true);
+      expect(result.hovering).toBe(true);
+      expect(result.progress).toBeCloseTo(0.1, 5);
+    });
   });
 
   describe('completion', () => {
@@ -180,6 +187,44 @@ describe('HoverDetector', () => {
       const result = hd.update(1, 0, 0, 0, 0, 50);
       expect(result.complete).toBe(true);
       expect(onComplete).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('isInZoneFn override', () => {
+    it('uses isInZoneFn instead of radius check when provided', () => {
+      const hd = new HoverDetector({ hoverTime: 1000 });
+      // Helicopter is at (200, 0) — outside a radius of 50 around (0, 0).
+      // But isInZoneFn always returns true, so it should still hover.
+      const alwaysIn = () => true;
+      const result = hd.update(500, 200, 0, 0, 0, 50, alwaysIn);
+      expect(result.hovering).toBe(true);
+    });
+
+    it('isInZoneFn returning false keeps detector outside zone', () => {
+      const hd = new HoverDetector({ hoverTime: 1000 });
+      // Helicopter at origin — inside radius 50. But isInZoneFn returns false.
+      const neverIn = () => false;
+      const result = hd.update(500, 0, 0, 0, 0, 50, neverIn);
+      expect(result.hovering).toBe(false);
+      expect(hd.getProgress()).toBe(0);
+    });
+
+    it('completes when isInZoneFn returns true for long enough', () => {
+      const onComplete = vi.fn();
+      const hd = new HoverDetector({ hoverTime: 500, onComplete });
+      const alwaysIn = () => true;
+      // Outside radius 10, but isInZoneFn says in
+      hd.update(600, 999, 0, 0, 0, 10, alwaysIn);
+      expect(onComplete).toHaveBeenCalledOnce();
+    });
+
+    it('passes helicopter coords to isInZoneFn', () => {
+      const hd = new HoverDetector({ hoverTime: 1000 });
+      const captured = [];
+      const spy = (x, y) => { captured.push({ x, y }); return false; };
+      hd.update(100, 42, 77, 0, 0, 50, spy);
+      expect(captured).toHaveLength(1);
+      expect(captured[0]).toEqual({ x: 42, y: 77 });
     });
   });
 });

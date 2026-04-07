@@ -8,10 +8,15 @@ import SearchTimer from '../quiz/SearchTimer.js';
 import TargetVisualizer from '../quiz/TargetVisualizer.js';
 import TargetRevealEffect from '../quiz/TargetRevealEffect.js';
 import { resolveTargetRevealGeometry } from '../quiz/targetRevealResolver.js';
+import {
+  computeProjectedTargetBounds,
+  containsProjectedPoint,
+  resolveProjectedTargetGeometry,
+} from '../quiz/targetGeometry.js';
 import QuizHUD from '../ui/QuizHUD.js';
 import ResultOverlay from '../ui/ResultOverlay.js';
 import { DATA_CACHE_KEYS } from './PreloadScene.js';
-import { computeFixedFraming } from '../core/quizFraming.js';
+import { computeFixedFramingFromBounds } from '../core/quizFraming.js';
 import { getAudioManager } from '../audio/AudioManager.js';
 import { interpolateRotorProfile } from '../audio/audioProfiles.js';
 import {
@@ -67,6 +72,8 @@ export default class HelicopterScene extends MapScene {
     this._resultOverlay     = null;
     this._activeTargetPoint = null; // { x, y } projected world coords
     this._activeTarget      = null;
+    this._activeTargetReveal = null; // resolved geometry/reveal for hit-test + reveal effect
+    this._activeTargetGeometry = null; // projected geometry for hit detection + framing
     this._answerRevealActive = false;
     this._pendingAdvanceEvent = null;
 
@@ -200,6 +207,8 @@ export default class HelicopterScene extends MapScene {
     this._quizController   = null;
     this._activeTargetPoint = null;
     this._activeTarget = null;
+    this._activeTargetReveal = null;
+    this._activeTargetGeometry = null;
     this._answerRevealActive = false;
     this._pendingAdvanceEvent = null;
 
@@ -462,12 +471,24 @@ export default class HelicopterScene extends MapScene {
       : QUIZ_TARGET_STYLE.REVEAL_DURATION_MS;
   }
 
-  resolveTargetReveal(target = this._activeTarget) {
-    return resolveTargetRevealGeometry(target, {
+  _getDatasets() {
+    return {
       worldGeoJson: this.cache?.json?.get(DATA_CACHE_KEYS.WORLD_GEOJSON),
       lakesGeoJson: this.cache?.json?.get(DATA_CACHE_KEYS.WORLD_MAJOR_LAKES),
       riversGeoJson: this.cache?.json?.get(DATA_CACHE_KEYS.WORLD_MAJOR_RIVERS),
-    });
+    };
+  }
+
+  resolveTargetReveal(target = this._activeTarget) {
+    return resolveTargetRevealGeometry(target, this._getDatasets());
+  }
+
+  resolveProjectedTargetGeometry(target = this._activeTarget) {
+    return resolveProjectedTargetGeometry(
+      target,
+      (lat, lon) => this.projectLatLon(lat, lon),
+      this._getDatasets(),
+    );
   }
 
   instantiateHelicopter(x, y) {
@@ -625,6 +646,7 @@ export default class HelicopterScene extends MapScene {
       );
     setCameraScroll(this.cameras.main, cameraScroll.x, cameraScroll.y);
     this.inputController?.setZoomLimits(z, z);
+    this.inputController?.clampCamera?.();
     this.baseMapMinZoom = z;
 
     debugLog('FRAMING-APPLY', `Applied fixed framing (${reason})`, this.getDebugSceneSnapshot({
@@ -766,13 +788,19 @@ export default class HelicopterScene extends MapScene {
 
     const level = this._quizController?.level;
     const paddingFactor = level?.framingPaddingFactor ?? 0.15;
+    const datasets = this._getDatasets();
+    const projectFn = (lat, lon) => this.projectLatLon(lat, lon);
     const projectedTargets = summarizeProjectedTargets(
       this._quizSetTargets,
-      (lat, lon) => this.projectLatLon(lat, lon),
+      projectFn,
     );
-    const framing = computeFixedFraming(
+    const targetBounds = computeProjectedTargetBounds(
       this._quizSetTargets,
-      (lat, lon) => this.projectLatLon(lat, lon),
+      projectFn,
+      datasets,
+    );
+    const framing = computeFixedFramingFromBounds(
+      targetBounds,
       viewWidth,
       viewHeight,
       paddingFactor,
@@ -785,6 +813,7 @@ export default class HelicopterScene extends MapScene {
       paddingFactor,
       targetSummary: summarizeTargets(this._quizSetTargets),
       projectedTargets,
+      targetBounds,
       framing,
     });
 
@@ -916,6 +945,15 @@ export default class HelicopterScene extends MapScene {
     const pt = this.projectLatLon(target.lat, target.lon);
     this._activeTargetPoint = pt ?? null;
 
+    const datasets = this._getDatasets();
+    // Resolve geometry once per target; reused for hit detection, framing, and reveal effect.
+    this._activeTargetReveal = resolveTargetRevealGeometry(target, datasets);
+    this._activeTargetGeometry = resolveProjectedTargetGeometry(
+      target,
+      (lat, lon) => this.projectLatLon(lat, lon),
+      datasets,
+    );
+
     if (pt) {
       this._targetVisualizer?.showTarget(
         pt.x,
@@ -946,6 +984,9 @@ export default class HelicopterScene extends MapScene {
         lon: target.lon ?? null,
       },
       projectedTargetPoint: pt,
+      revealKind: this._activeTargetReveal?.kind ?? null,
+      geometryKind: this._activeTargetGeometry?.kind ?? null,
+      geometryBounds: this._activeTargetGeometry?.bounds ?? null,
       progress,
       levelName,
     }));
@@ -964,7 +1005,9 @@ export default class HelicopterScene extends MapScene {
     this._stopGameplayInput();
 
     if (this._activeTargetPoint) {
-      const reveal = this.resolveTargetReveal(this._activeTarget);
+      // Reuse pre-resolved geometry (cached in _onQuizTargetChange); fall back to
+      // re-resolving only if somehow not set yet.
+      const reveal = this._activeTargetReveal ?? this.resolveTargetReveal(this._activeTarget);
       this._targetRevealEffect?.playReveal(reveal, this._activeTargetPoint, {
         durationMs: this.getRevealDurationMs(),
       });
@@ -1198,8 +1241,8 @@ export default class HelicopterScene extends MapScene {
     const vy = Array.isArray(vel) ? vel[1] : (vel?.y ?? 0);
     const speed = Math.hypot(vx, vy);
     const maxSpeed = this._quizController?.level?.helicopterSpeed ?? MOVEMENT_STYLE.MAX_SPEED;
-    const { freq, gain } = interpolateRotorProfile(speed, maxSpeed);
-    this._audioManager.setRotorProfile(freq, gain);
+    const profile = interpolateRotorProfile(speed, maxSpeed);
+    this._audioManager.setRotorProfile(profile);
   }
 
   _updateQuiz(delta) {
@@ -1226,7 +1269,12 @@ export default class HelicopterScene extends MapScene {
     const heliY = Array.isArray(pos) ? pos[1] : pos.y;
     if (!Number.isFinite(heliX) || !Number.isFinite(heliY)) return;
 
-    const radius = this.getTargetHitRadius();
+    const targetGeometry = this._activeTargetGeometry;
+    const isInZoneFn = targetGeometry
+      ? (x, y) => containsProjectedPoint(targetGeometry, x, y, this.getCameraZoom())
+      : null;
+    const radius = targetGeometry ? 0 : this.getTargetHitRadius();
+
     const result = this._hoverDetector.update(
       delta,
       heliX,
@@ -1234,6 +1282,7 @@ export default class HelicopterScene extends MapScene {
       this._activeTargetPoint.x,
       this._activeTargetPoint.y,
       radius,
+      isInZoneFn,
     );
 
     // Drive the pulse animation even when not hovering
