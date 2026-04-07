@@ -497,3 +497,35 @@ describe('HelicopterScene createSceneSystems fixed-framing reapplication', () =>
     expect(scene._framingState).toBe(framingFromCamera);
   });
 });
+
+describe('HelicopterScene._resolveStartPlayMode', () => {
+  it('returns the playMode from sys.settings.data', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene.sys = { settings: { data: { playMode: 'spelling' } } };
+    expect(scene._resolveStartPlayMode()).toBe('spelling');
+  });
+
+  it('falls back to scene.settings.data when sys data is absent', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene.sys = { settings: { data: null } };
+    scene.scene = { settings: { data: { playMode: 'mixed' } } };
+    expect(scene._resolveStartPlayMode()).toBe('mixed');
+  });
+
+  it('returns null when playMode is not present in scene data', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene.sys = { settings: { data: { quizSetId: 'quiz-nl' } } };
+    expect(scene._resolveStartPlayMode()).toBe(null);
+  });
+
+  it('returns null when scene data is completely absent', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene.sys = { settings: { data: {} } };
+    expect(scene._resolveStartPlayMode()).toBe(null);
+  });
+
+  it('returns null in a non-browser environment without sys/scene', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    expect(scene._resolveStartPlayMode()).toBe(null);
+  });
+});

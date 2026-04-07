@@ -730,6 +730,16 @@ export default class HelicopterScene extends MapScene {
     return null;
   }
 
+  _resolveStartPlayMode() {
+    try {
+      const sysData = this.sys?.settings?.data;
+      const sceneData = this.scene?.settings?.data;
+      const data = sysData ?? sceneData;
+      if (data?.playMode) return data.playMode;
+    } catch (_) { /* non-browser env */ }
+    return null;
+  }
+
   _resolveStartQuizSetId() {
     try {
       // Scene data passed via this.scene.start('HelicopterScene', { quizSetId })
@@ -930,6 +940,7 @@ export default class HelicopterScene extends MapScene {
       onTargetChange: (target, progress) => this._onQuizTargetChange(target, progress),
       onScoreUpdate:  (progress)         => this._onQuizScoreUpdate(progress),
       onComplete:     (progress)         => this._onQuizComplete(progress),
+      playMode:       this._resolveStartPlayMode(),
     });
 
     // Check for a curated quiz set selected from QuizSelectionScene
@@ -946,6 +957,7 @@ export default class HelicopterScene extends MapScene {
 
       debugLog('QUIZ-INIT', 'Resolved curated quiz set for helicopter scene', {
         sceneData: this.sys?.settings?.data ?? null,
+        playMode: this._resolveStartPlayMode() ?? 'locate',
         quizSet: {
           id: quizSet.id ?? null,
           name: quizSet.name ?? null,

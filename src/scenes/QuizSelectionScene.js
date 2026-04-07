@@ -7,6 +7,7 @@ import {
   getCanvasMetrics,
   getWindowMetrics,
 } from '../core/runtimeDebug.js';
+import { PLAY_MODE } from '../quiz/questionModes.js';
 
 const CARD_PADDING_X = 20;
 const CARD_PADDING_Y = 14;
@@ -26,6 +27,16 @@ const SUBTITLE_COLOR = '#334155';
 const NAME_COLOR = '#f8fafc';
 const DESC_COLOR = '#94a3b8';
 
+const MODE_SELECTOR_GAP = 8;
+const MODE_BUTTON_HEIGHT = 42;
+const MODE_BUTTON_RADIUS = 6;
+const MODE_COLOR_NORMAL = 0x1e3a5f;
+const MODE_COLOR_SELECTED = 0x0f766e;
+const MODE_TEXT_NORMAL = '#64748b';
+const MODE_TEXT_SELECTED = '#f0fdfa';
+const MODE_SELECTOR_OFFSET_Y = 72;
+const MODE_SELECTOR_BOTTOM_GAP = 14;
+
 export default class QuizSelectionScene extends Phaser.Scene {
   constructor() {
     super('QuizSelectionScene');
@@ -42,6 +53,8 @@ export default class QuizSelectionScene extends Phaser.Scene {
     this._scrollPointerId = null;
     this._scrollLastY = 0;
     this._scrollDistance = 0;
+    this._selectedPlayMode = PLAY_MODE.LOCATE;
+    this._modeButtonStates = [];
   }
 
   create() {
@@ -79,6 +92,7 @@ export default class QuizSelectionScene extends Phaser.Scene {
   _buildUI(sets, width, height) {
     this.children.removeAll(true);
     this._cards = [];
+    this._modeButtonStates = [];
     this._listContainer = null;
     this._listMaskGraphics = null;
     this._scrollOffset = 0;
@@ -112,7 +126,10 @@ export default class QuizSelectionScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    this._listTop = titleY + 80;
+    const modeSelectorY = titleY + MODE_SELECTOR_OFFSET_Y;
+    this._createModeSelector(width, cardWidth, cardLeft, modeSelectorY);
+
+    this._listTop = modeSelectorY + MODE_BUTTON_HEIGHT + MODE_SELECTOR_BOTTOM_GAP;
     this._listHeight = Math.max(140, height - this._listTop - LIST_BOTTOM_MARGIN);
     this._listLeft = cardLeft;
     this._listWidth = cardWidth;
@@ -239,13 +256,70 @@ export default class QuizSelectionScene extends Phaser.Scene {
           window: getWindowMetrics(),
           canvas: getCanvasMetrics(this.game),
         });
-        this.scene.start('HelicopterScene', { quizSetId: quizSet.id });
+        this.scene.start('HelicopterScene', { quizSetId: quizSet.id, playMode: this._selectedPlayMode });
       }
     });
 
     this._cards.push(cardState);
 
     return y + innerHeight;
+  }
+
+  _createModeSelector(width, cardWidth, cardLeft, y) {
+    void width;
+    const btnGap = MODE_SELECTOR_GAP;
+    const btnWidth = Math.floor((cardWidth - btnGap * 2) / 3);
+
+    const modes = [
+      { mode: PLAY_MODE.LOCATE,   label: 'Normaal' },
+      { mode: PLAY_MODE.SPELLING, label: 'Spelling' },
+      { mode: PLAY_MODE.MIXED,    label: 'Gemengd' },
+    ];
+
+    for (let i = 0; i < modes.length; i++) {
+      const { mode, label } = modes[i];
+      const btnX = cardLeft + i * (btnWidth + btnGap);
+
+      const bg = this.add.graphics();
+
+      const text = this.add
+        .text(
+          btnX + Math.round(btnWidth * 0.5),
+          y + Math.round(MODE_BUTTON_HEIGHT * 0.5),
+          label,
+          {
+            fontFamily: OVERLAY_STYLE.FONT_FAMILY,
+            fontSize: '13px',
+            fontStyle: 'bold',
+          },
+        )
+        .setOrigin(0.5, 0.5);
+
+      const zone = this.add
+        .zone(btnX, y, btnWidth, MODE_BUTTON_HEIGHT)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+
+      const btnState = { bg, text, zone, mode, x: btnX, y, width: btnWidth };
+      this._modeButtonStates.push(btnState);
+
+      zone.on('pointerdown', () => {
+        this._selectedPlayMode = mode;
+        this._updateModeButtonStyles();
+      });
+    }
+
+    this._updateModeButtonStyles();
+  }
+
+  _updateModeButtonStyles() {
+    for (const btn of this._modeButtonStates) {
+      const selected = btn.mode === this._selectedPlayMode;
+      btn.bg.clear();
+      btn.bg.fillStyle(selected ? MODE_COLOR_SELECTED : MODE_COLOR_NORMAL, 1);
+      btn.bg.fillRoundedRect(btn.x, btn.y, btn.width, MODE_BUTTON_HEIGHT, MODE_BUTTON_RADIUS);
+      btn.text.setStyle({ color: selected ? MODE_TEXT_SELECTED : MODE_TEXT_NORMAL });
+    }
   }
 
   _drawCardBackground(graphics, width, height, color) {
@@ -322,6 +396,7 @@ export default class QuizSelectionScene extends Phaser.Scene {
     this.scale.off(Phaser.Scale.Events.RESIZE, this._handleResize, this);
     this._cards = [];
     this._quizSets = [];
+    this._modeButtonStates = [];
     this._listContainer = null;
     this._listMaskGraphics = null;
   }
