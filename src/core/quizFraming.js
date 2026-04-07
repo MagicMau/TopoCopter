@@ -161,6 +161,7 @@ export function computeFixedFramingFromBounds(
   viewHeight,
   paddingFactor = 0.15,
   maxZoom = Infinity,
+  fitMode = 'contain',
 ) {
   const normalizedBounds = normalizeBounds(bounds);
   if (!normalizedBounds) {
@@ -181,7 +182,13 @@ export function computeFixedFramingFromBounds(
 
   const zoomX = safeViewWidth / paddedWidth;
   const zoomY = safeViewHeight / paddedHeight;
-  const zoom = Math.min(zoomX, zoomY, maxZoom > 0 ? maxZoom : Infinity);
+  const requestedFitMode = typeof fitMode === 'string' ? fitMode.toLowerCase() : 'contain';
+  const rawZoom = requestedFitMode === 'width'
+    ? zoomX
+    : requestedFitMode === 'height'
+      ? zoomY
+      : Math.min(zoomX, zoomY);
+  const zoom = Math.min(rawZoom, maxZoom > 0 ? maxZoom : Infinity);
 
   const safeZoom = Math.max(zoom, 0.0001);
 

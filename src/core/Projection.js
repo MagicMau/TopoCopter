@@ -211,19 +211,28 @@ export default class Projection {
     const innerWidth = Math.max(0, this.width - this.padding.left - this.padding.right);
     const innerHeight = Math.max(0, this.height - this.padding.top - this.padding.bottom);
     const preserveAspect = options.preserveAspect !== false;
+    const fitMode = typeof options.fitMode === 'string' ? options.fitMode.toLowerCase() : 'contain';
 
     if (preserveAspect) {
-      // Constrain X-axis to fit within viewport width, allow Y-axis to be flexible
-      this.scaleX = innerWidth > 0 ? innerWidth / xSpan : 0;
-      // Calculate Y scale based on available height, but will be centered if taller than needed
-      this.scaleY = innerHeight > 0 ? innerHeight / ySpan : 0;
-      
-      this.mapWidth = xSpan * this.scaleX;
-      this.mapHeight = ySpan * this.scaleY;
-      
-      // Center horizontally (constrained by width)
+      const widthScale = innerWidth > 0 ? innerWidth / xSpan : 0;
+      const heightScale = innerHeight > 0 ? innerHeight / ySpan : 0;
+      let scale = 0;
+
+      if (fitMode === 'width') {
+        scale = widthScale;
+      } else if (fitMode === 'height') {
+        scale = heightScale;
+      } else {
+        scale = widthScale > 0 && heightScale > 0
+          ? Math.min(widthScale, heightScale)
+          : 0;
+      }
+
+      this.scaleX = scale;
+      this.scaleY = scale;
+      this.mapWidth = xSpan * scale;
+      this.mapHeight = ySpan * scale;
       this.offsetX = this.padding.left + (innerWidth - this.mapWidth) * 0.5;
-      // Center vertically (may have extra space if scaleY allows content to be smaller)
       this.offsetY = this.padding.top + (innerHeight - this.mapHeight) * 0.5;
     } else {
       this.scaleX = innerWidth / xSpan;

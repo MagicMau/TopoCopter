@@ -47,7 +47,8 @@
           "top": 96,
           "bottom": 96
         },
-        "preserveAspect": false
+        "preserveAspect": true,
+        "fitMode": "width"
       },
       "targets": [
         "country-iceland",

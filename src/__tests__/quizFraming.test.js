@@ -274,6 +274,21 @@ describe('computeFixedFramingFromBounds', () => {
     expect(result.zoom).toBeCloseTo(600 / 480, 5);
   });
 
+  it('supports width-fit framing for wide cropped maps', () => {
+    const bounds = {
+      minX: 100,
+      maxX: 500,
+      minY: 200,
+      maxY: 720,
+    };
+
+    const result = computeFixedFramingFromBounds(bounds, 800, 300, 0, Infinity, 'width');
+
+    expect(result.centerX).toBe(300);
+    expect(result.centerY).toBe(460);
+    expect(result.zoom).toBeCloseTo(2, 5);
+  });
+
   it('returns null for invalid bounds', () => {
     expect(
       computeFixedFramingFromBounds({ minX: 0, maxX: Number.NaN, minY: 0, maxY: 10 }, 800, 600),

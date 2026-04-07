@@ -3,29 +3,54 @@ import gameConfig from './core/GameConfig.js';
 
 const GAME_INSTANCE_KEY = '__TOPOCOPTER_GAME__';
 const GAME_CLEANUP_KEY = '__TOPOCOPTER_GAME_CLEANUP__';
+const VIEWPORT_WIDTH_VAR = '--app-viewport-width';
+const VIEWPORT_HEIGHT_VAR = '--app-viewport-height';
 
 const readViewportSize = () => ({
-  width: Math.max(1, Math.round(window.visualViewport?.width ?? window.innerWidth)),
-  height: Math.max(1, Math.round(window.visualViewport?.height ?? window.innerHeight))
+  width: Math.max(
+    1,
+    Math.round(
+      window.visualViewport?.width
+      ?? document.documentElement?.clientWidth
+      ?? window.innerWidth,
+    ),
+  ),
+  height: Math.max(
+    1,
+    Math.round(
+      window.visualViewport?.height
+      ?? document.documentElement?.clientHeight
+      ?? window.innerHeight,
+    ),
+  ),
 });
 
-const syncViewport = (game) => {
-  const { width, height } = readViewportSize();
+const applyViewportSize = ({ width, height }) => {
+  document.documentElement?.style?.setProperty(VIEWPORT_WIDTH_VAR, `${width}px`);
+  document.documentElement?.style?.setProperty(VIEWPORT_HEIGHT_VAR, `${height}px`);
+};
 
-  if (game.scale.width !== width || game.scale.height !== height) {
+const syncViewport = (game = null) => {
+  const { width, height } = readViewportSize();
+  applyViewportSize({ width, height });
+
+  if (game && (game.scale.width !== width || game.scale.height !== height)) {
     game.scale.resize(width, height);
   }
+
+  return { width, height };
 };
 
 const bindViewportEvents = (game) => {
   const handleViewportChange = () => syncViewport(game);
-  
-  // Use a debounced handler for orientation changes to account for UI chrome changes
+
+  // Orientation changes can report stale viewport metrics briefly on mobile browsers,
+  // so resync immediately and then once more after the browser UI settles.
   let orientationTimeout;
   const handleOrientationChange = () => {
     clearTimeout(orientationTimeout);
-    // Delay to allow the browser to complete orientation transition and UI chrome updates
-    orientationTimeout = setTimeout(handleViewportChange, 100);
+    handleViewportChange();
+    orientationTimeout = setTimeout(handleViewportChange, 300);
   };
 
   window.addEventListener('resize', handleViewportChange);
@@ -47,6 +72,7 @@ const startGame = () => {
     return window[GAME_INSTANCE_KEY] ?? null;
   }
 
+  syncViewport();
   const game = new Phaser.Game(gameConfig);
   syncViewport(game);
 

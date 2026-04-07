@@ -870,11 +870,16 @@ export default class HelicopterScene extends MapScene {
       projectFn,
       datasets,
     );
+    const framingFitMode = projectionFramingBounds
+      ? (typeof level?.projection?.fitMode === 'string' ? level.projection.fitMode : 'width')
+      : 'contain';
     const framing = computeFixedFramingFromBounds(
       targetBounds,
       viewWidth,
       viewHeight,
       paddingFactor,
+      Infinity,
+      framingFitMode,
     );
 
     debugLog('FRAMING-COMPUTE', 'Computed fixed framing state', {
@@ -886,6 +891,7 @@ export default class HelicopterScene extends MapScene {
       projectedTargets,
       projectionFramingBounds,
       targetBounds,
+      framingFitMode,
       framing,
     });
 

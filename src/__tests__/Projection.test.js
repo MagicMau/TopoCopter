@@ -153,6 +153,20 @@ describe('Projection', () => {
       const point = proj.latLonToPoint(53.7, 5.25);
       expect(point.y).toBeCloseTo(0, 0);
     });
+
+    it('supports width-fit aspect preservation for cropped sub-regions', () => {
+      const proj = new Projection();
+      proj.init(400, 300, {
+        type: 'equirectangular',
+        bounds: { west: 0, south: 0, east: 100, north: 20 },
+        fitMode: 'width',
+      });
+
+      expect(proj.scaleX).toBeCloseTo(proj.scaleY, 6);
+      expect(proj.mapWidth).toBeCloseTo(400, 6);
+      expect(proj.mapHeight).toBeCloseTo(80, 6);
+      expect(proj.offsetY).toBeCloseTo(110, 6);
+    });
   });
 
   describe('padding', () => {
