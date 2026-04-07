@@ -65,7 +65,9 @@ const gameConfig = {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: initialViewport.width,
-    height: initialViewport.height
+    height: initialViewport.height,
+    expandParent: true,
+    fullscreenTarget: 'game-root'
   },
   input: {
     activePointers: 3,

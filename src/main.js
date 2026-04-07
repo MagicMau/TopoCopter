@@ -19,13 +19,24 @@ const syncViewport = (game) => {
 
 const bindViewportEvents = (game) => {
   const handleViewportChange = () => syncViewport(game);
+  
+  // Use a debounced handler for orientation changes to account for UI chrome changes
+  let orientationTimeout;
+  const handleOrientationChange = () => {
+    clearTimeout(orientationTimeout);
+    // Delay to allow the browser to complete orientation transition and UI chrome updates
+    orientationTimeout = setTimeout(handleViewportChange, 100);
+  };
 
   window.addEventListener('resize', handleViewportChange);
+  window.addEventListener('orientationchange', handleOrientationChange);
   window.visualViewport?.addEventListener('resize', handleViewportChange);
   window.visualViewport?.addEventListener('scroll', handleViewportChange);
 
   return () => {
+    clearTimeout(orientationTimeout);
     window.removeEventListener('resize', handleViewportChange);
+    window.removeEventListener('orientationchange', handleOrientationChange);
     window.visualViewport?.removeEventListener('resize', handleViewportChange);
     window.visualViewport?.removeEventListener('scroll', handleViewportChange);
   };
