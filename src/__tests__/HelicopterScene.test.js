@@ -293,6 +293,32 @@ describe('HelicopterScene.handleResize with fixed framing', () => {
   });
 });
 
+describe('HelicopterScene._computeFramingState with projection framing', () => {
+  it('fits the cropped projection window instead of target geometry bounds', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._quizSetTargets = [{ id: 'country-iceland', lat: 65, lon: -19 }];
+    scene._quizController = { level: { framingPaddingFactor: 0.25 } };
+    scene._currentQuizSetId = 'quiz-noord-europa';
+    scene._getProjectionFramingBounds = vi.fn(() => ({
+      minX: 100,
+      maxX: 500,
+      minY: 50,
+      maxY: 650,
+      centerX: 300,
+      centerY: 350,
+    }));
+    scene._getDatasets = vi.fn(() => ({}));
+    scene.projectLatLon = vi.fn(() => ({ x: 200, y: 200 }));
+
+    const framing = scene._computeFramingState(390, 844);
+
+    expect(scene._getProjectionFramingBounds).toHaveBeenCalled();
+    expect(framing.centerX).toBeCloseTo(300);
+    expect(framing.centerY).toBeCloseTo(350);
+    expect(framing.zoom).toBeCloseTo(390 / 400, 5);
+  });
+});
+
 describe('HelicopterScene createSceneSystems fixed-framing reapplication', () => {
   it('recomputes framing with camera.width/height and applies it at startup', () => {
     const scene = makeFramingScene();

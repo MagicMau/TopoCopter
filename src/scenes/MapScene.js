@@ -27,6 +27,13 @@ import {
   WORLD_LAYOUT,
 } from '../ui/styles.js';
 
+const DEFAULT_PROJECTION_BOUNDS = Object.freeze({
+  west: -180,
+  south: -90,
+  east: 180,
+  north: 90,
+});
+
 export default class MapScene extends Phaser.Scene {
   constructor(sceneKey = 'MapScene') {
     super(sceneKey);
@@ -60,10 +67,7 @@ export default class MapScene extends Phaser.Scene {
     this.projection = new Projection().init(
       WORLD_LAYOUT.WIDTH,
       WORLD_LAYOUT.HEIGHT,
-      {
-        type: 'equirectangular',
-        wrapX: false,
-      },
+      this.getProjectionOptions(),
     );
 
     this.reliefImage = this.createReliefLayer();
@@ -137,6 +141,13 @@ export default class MapScene extends Phaser.Scene {
 
   destroySceneSystems() {}
 
+  getProjectionOptions() {
+    return {
+      type: 'equirectangular',
+      wrapX: false,
+    };
+  }
+
   getInputControllerOptions(baseOptions) {
     return baseOptions;
   }
@@ -195,7 +206,7 @@ export default class MapScene extends Phaser.Scene {
       return null;
     }
 
-    return this.registerWorldObject(
+    const reliefImage = this.registerWorldObject(
       this.add
         .image(
           this.projection.offsetX,
@@ -203,11 +214,39 @@ export default class MapScene extends Phaser.Scene {
           DATA_CACHE_KEYS.WORLD_RELIEF,
         )
         .setOrigin(0, 0)
-        .setDisplaySize(this.projection.mapWidth, this.projection.mapHeight)
         .setAlpha(MAP_STYLE.RELIEF_ALPHA)
         .setTint(PALETTE.reliefTint)
         .setDepth(WORLD_DEPTHS.RELIEF),
     );
+    const clipBounds = this.getGeoClipBounds();
+
+    if (clipBounds && typeof reliefImage?.setCrop === 'function') {
+      const texture = this.textures.get(DATA_CACHE_KEYS.WORLD_RELIEF);
+      const source = texture?.getSourceImage?.();
+      const sourceWidth = Number(source?.width ?? source?.naturalWidth);
+      const sourceHeight = Number(source?.height ?? source?.naturalHeight);
+
+      if (Number.isFinite(sourceWidth) && Number.isFinite(sourceHeight)) {
+        const cropX = ((clipBounds.west + 180) / 360) * sourceWidth;
+        const cropY = ((90 - clipBounds.north) / 180) * sourceHeight;
+        const cropWidth = ((clipBounds.east - clipBounds.west) / 360) * sourceWidth;
+        const cropHeight = ((clipBounds.north - clipBounds.south) / 180) * sourceHeight;
+        const scaleX = this.projection.mapWidth / Math.max(cropWidth, 1);
+        const scaleY = this.projection.mapHeight / Math.max(cropHeight, 1);
+
+        reliefImage.setCrop(cropX, cropY, cropWidth, cropHeight);
+        reliefImage.setScale(scaleX, scaleY);
+        reliefImage.setPosition(
+          this.projection.offsetX - (cropX * scaleX),
+          this.projection.offsetY - (cropY * scaleY),
+        );
+        return reliefImage;
+      }
+    }
+
+    reliefImage.setDisplaySize(this.projection.mapWidth, this.projection.mapHeight);
+
+    return reliefImage;
   }
 
   renderWorldMap() {
@@ -217,6 +256,7 @@ export default class MapScene extends Phaser.Scene {
       return;
     }
 
+    const clipBounds = this.getGeoClipBounds();
     const preparedLayers = MapLoader.prepareGeoJSONCollection([
       {
         id: DATA_CACHE_KEYS.WORLD_GEOJSON,
@@ -224,6 +264,7 @@ export default class MapScene extends Phaser.Scene {
         data: rawGeoJson,
         options: {
           simplifyTolerance: MAP_STYLE.GEOJSON_SIMPLIFY_TOLERANCE,
+          clipBounds,
         },
       },
       ...DETAIL_LAYER_DEFINITIONS.map((layer) => ({
@@ -241,6 +282,7 @@ export default class MapScene extends Phaser.Scene {
           simplifyTolerance:
             layer.simplifyTolerance ??
             MAP_STYLE.DETAIL_GEOJSON_SIMPLIFY_TOLERANCE,
+          clipBounds,
         },
       })),
       ...PHYSICAL_LAYER_DEFINITIONS.map((layer) => ({
@@ -256,6 +298,7 @@ export default class MapScene extends Phaser.Scene {
         },
         options: {
           simplifyTolerance: layer.simplifyTolerance,
+          clipBounds,
         },
       })),
     ]);
@@ -351,6 +394,7 @@ export default class MapScene extends Phaser.Scene {
   renderMarkers() {
     const markerData = this.cache.json.get(DATA_CACHE_KEYS.MARKERS);
     const markers = this.normalizeMarkers(markerData)
+      .filter((marker) => this.isLatLonWithinProjectionBounds(marker.lat, marker.lon))
       .map((marker) => {
         const point = this.projectLatLon(marker.lat, marker.lon);
 
@@ -434,6 +478,45 @@ export default class MapScene extends Phaser.Scene {
         (marker) =>
           Number.isFinite(marker.lat) && Number.isFinite(marker.lon),
       );
+  }
+
+  getGeoClipBounds() {
+    const bounds = this.projection?.bounds;
+
+    if (
+      !bounds ||
+      !Number.isFinite(bounds.west) ||
+      !Number.isFinite(bounds.south) ||
+      !Number.isFinite(bounds.east) ||
+      !Number.isFinite(bounds.north)
+    ) {
+      return null;
+    }
+
+    const isFullWorld =
+      bounds.west === DEFAULT_PROJECTION_BOUNDS.west &&
+      bounds.south === DEFAULT_PROJECTION_BOUNDS.south &&
+      bounds.east === DEFAULT_PROJECTION_BOUNDS.east &&
+      bounds.north === DEFAULT_PROJECTION_BOUNDS.north;
+
+    return isFullWorld ? null : bounds;
+  }
+
+  isLatLonWithinProjectionBounds(lat, lon) {
+    const clipBounds = this.getGeoClipBounds();
+
+    if (!clipBounds) {
+      return true;
+    }
+
+    return (
+      Number.isFinite(lat) &&
+      Number.isFinite(lon) &&
+      lat >= clipBounds.south &&
+      lat <= clipBounds.north &&
+      lon >= clipBounds.west &&
+      lon <= clipBounds.east
+    );
   }
 
   createOverlay() {

@@ -88,6 +88,7 @@ export default class HelicopterScene extends MapScene {
     this._framingState       = null; // { scrollX, scrollY, zoom, centerX, centerY }
 
     this._audioManager       = null;
+    this._bootstrapQuizSetData = undefined;
   }
 
   createWorldContent() {
@@ -219,6 +220,7 @@ export default class HelicopterScene extends MapScene {
     this._fixedFramingActive = false;
     this._quizSetTargets     = null;
     this._framingState       = null;
+    this._bootstrapQuizSetData = undefined;
 
     this._audioManager?.stopRotorLoop();
     this._audioManager = null;
@@ -288,6 +290,20 @@ export default class HelicopterScene extends MapScene {
 
   getOverlayText() {
     return UI_COPY.HELICOPTER_CONTROLS ?? super.getOverlayText();
+  }
+
+  getProjectionOptions() {
+    const bootstrapQuizSetData = this._resolveBootstrapQuizSetData();
+    const projectionConfig = bootstrapQuizSetData?.quizSet?.projection;
+
+    if (projectionConfig && typeof projectionConfig === 'object') {
+      return {
+        ...super.getProjectionOptions(),
+        ...projectionConfig,
+      };
+    }
+
+    return super.getProjectionOptions();
   }
 
   getInitialCameraFocus() {
@@ -735,6 +751,57 @@ export default class HelicopterScene extends MapScene {
     return (quizSetsData.sets ?? []).find((s) => s.id === quizSetId) ?? null;
   }
 
+  _resolveBootstrapQuizSetData() {
+    if (this._bootstrapQuizSetData !== undefined) {
+      return this._bootstrapQuizSetData;
+    }
+
+    const quizSetId = this._resolveStartQuizSetId();
+
+    if (!quizSetId) {
+      this._bootstrapQuizSetData = null;
+      return this._bootstrapQuizSetData;
+    }
+
+    const quizSet = this._resolveQuizSet(quizSetId);
+    const targetsData = this.cache?.json?.get(DATA_CACHE_KEYS.QUIZ_TARGETS) ?? null;
+
+    if (!quizSet || !targetsData) {
+      this._bootstrapQuizSetData = null;
+      return this._bootstrapQuizSetData;
+    }
+
+    this._bootstrapQuizSetData = {
+      quizSetId,
+      quizSet,
+      levelConfig: this._buildLevelFromQuizSet(quizSet, targetsData),
+    };
+
+    return this._bootstrapQuizSetData;
+  }
+
+  _getProjectionFramingBounds() {
+    const projectionConfig = this._resolveBootstrapQuizSetData()?.quizSet?.projection;
+
+    if (!projectionConfig?.bounds || !this.projection) {
+      return null;
+    }
+
+    const minX = this.projection.offsetX;
+    const minY = this.projection.offsetY;
+    const maxX = minX + this.projection.mapWidth;
+    const maxY = minY + this.projection.mapHeight;
+
+    return {
+      minX,
+      maxX,
+      minY,
+      maxY,
+      centerX: (minX + maxX) * 0.5,
+      centerY: (minY + maxY) * 0.5,
+    };
+  }
+
   /**
    * Build a level-compatible config object from a quiz-set definition, with
    * all `targets` IDs resolved to full target objects.
@@ -779,6 +846,7 @@ export default class HelicopterScene extends MapScene {
       fixedTargets,
       fixedFraming: Boolean(quizSet.fixedFraming),
       framingPaddingFactor: quizSet.framingPaddingFactor ?? 0.15,
+      projection: quizSet.projection ?? null,
     };
   }
 
@@ -787,14 +855,17 @@ export default class HelicopterScene extends MapScene {
     if (!this._quizSetTargets?.length) return null;
 
     const level = this._quizController?.level;
-    const paddingFactor = level?.framingPaddingFactor ?? 0.15;
+    const projectionFramingBounds = this._getProjectionFramingBounds();
+    const paddingFactor = projectionFramingBounds
+      ? 0
+      : level?.framingPaddingFactor ?? 0.15;
     const datasets = this._getDatasets();
     const projectFn = (lat, lon) => this.projectLatLon(lat, lon);
     const projectedTargets = summarizeProjectedTargets(
       this._quizSetTargets,
       projectFn,
     );
-    const targetBounds = computeProjectedTargetBounds(
+    const targetBounds = projectionFramingBounds ?? computeProjectedTargetBounds(
       this._quizSetTargets,
       projectFn,
       datasets,
@@ -813,6 +884,7 @@ export default class HelicopterScene extends MapScene {
       paddingFactor,
       targetSummary: summarizeTargets(this._quizSetTargets),
       projectedTargets,
+      projectionFramingBounds,
       targetBounds,
       framing,
     });
@@ -833,42 +905,40 @@ export default class HelicopterScene extends MapScene {
     });
 
     // Check for a curated quiz set selected from QuizSelectionScene
-    const quizSetId = this._resolveStartQuizSetId();
-    if (quizSetId) {
-      const quizSet = this._resolveQuizSet(quizSetId);
-      if (quizSet) {
-        const levelConfig = this._buildLevelFromQuizSet(quizSet, targetsData);
-        this._quizController.level = levelConfig;
-        this._currentQuizSetId     = quizSetId;
+    const bootstrapQuizSetData = this._resolveBootstrapQuizSetData();
+    if (bootstrapQuizSetData?.quizSet && bootstrapQuizSetData.levelConfig) {
+      const { quizSetId, quizSet, levelConfig } = bootstrapQuizSetData;
+      this._quizController.level = levelConfig;
+      this._currentQuizSetId     = quizSetId;
 
-        if (quizSet.fixedFraming) {
-          this._fixedFramingActive = true;
-          this._quizSetTargets = levelConfig.fixedTargets;
-        }
-
-        debugLog('QUIZ-INIT', 'Resolved curated quiz set for helicopter scene', {
-          sceneData: this.sys?.settings?.data ?? null,
-          quizSet: {
-            id: quizSet.id ?? null,
-            name: quizSet.name ?? null,
-            fixedFraming: Boolean(quizSet.fixedFraming),
-            searchTime: quizSet.searchTime ?? null,
-            hoverTime: quizSet.hoverTime ?? null,
-            helicopterSpeed: quizSet.helicopterSpeed ?? null,
-            framingPaddingFactor: quizSet.framingPaddingFactor ?? null,
-          },
-          levelConfig: {
-            id: levelConfig.id ?? null,
-            name: levelConfig.name ?? null,
-            searchTime: levelConfig.searchTime ?? null,
-            hoverTime: levelConfig.hoverTime ?? null,
-            helicopterSpeed: levelConfig.helicopterSpeed ?? null,
-            targetRadius: levelConfig.targetRadius ?? null,
-          },
-          targetSummary: summarizeTargets(levelConfig.fixedTargets),
-        });
-        return;
+      if (quizSet.fixedFraming) {
+        this._fixedFramingActive = true;
+        this._quizSetTargets = levelConfig.fixedTargets;
       }
+
+      debugLog('QUIZ-INIT', 'Resolved curated quiz set for helicopter scene', {
+        sceneData: this.sys?.settings?.data ?? null,
+        quizSet: {
+          id: quizSet.id ?? null,
+          name: quizSet.name ?? null,
+          fixedFraming: Boolean(quizSet.fixedFraming),
+          searchTime: quizSet.searchTime ?? null,
+          hoverTime: quizSet.hoverTime ?? null,
+          helicopterSpeed: quizSet.helicopterSpeed ?? null,
+          framingPaddingFactor: quizSet.framingPaddingFactor ?? null,
+          projection: quizSet.projection ?? null,
+        },
+        levelConfig: {
+          id: levelConfig.id ?? null,
+          name: levelConfig.name ?? null,
+          searchTime: levelConfig.searchTime ?? null,
+          hoverTime: levelConfig.hoverTime ?? null,
+          helicopterSpeed: levelConfig.helicopterSpeed ?? null,
+          targetRadius: levelConfig.targetRadius ?? null,
+        },
+        targetSummary: summarizeTargets(levelConfig.fixedTargets),
+      });
+      return;
     }
 
     // Fall back to URL-based level selection

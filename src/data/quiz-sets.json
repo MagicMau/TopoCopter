@@ -34,6 +34,21 @@
       "targetRadius": 60,
       "fixedFraming": true,
       "framingPaddingFactor": 0.08,
+      "projection": {
+        "bounds": {
+          "west": -26,
+          "south": 47,
+          "east": 40,
+          "north": 81
+        },
+        "padding": {
+          "left": 1536,
+          "right": 1536,
+          "top": 96,
+          "bottom": 96
+        },
+        "preserveAspect": false
+      },
       "targets": [
         "country-iceland",
         "country-norway",

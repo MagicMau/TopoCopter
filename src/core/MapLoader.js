@@ -2,6 +2,7 @@ const DEFAULT_OPTIONS = Object.freeze({
   simplifyTolerance: 0.02,
   normalizeLongitude: true,
   geometryType: 'polygon',
+  clipBounds: null,
 });
 
 const DEFAULT_BOUNDS = Object.freeze({
@@ -39,6 +40,28 @@ function normalizeLongitude(value) {
   }
 
   return normalized;
+}
+
+function normalizeClipBounds(bounds) {
+  if (!bounds || typeof bounds !== 'object') {
+    return null;
+  }
+
+  const west = Number(bounds.west);
+  const south = Number(bounds.south);
+  const east = Number(bounds.east);
+  const north = Number(bounds.north);
+
+  if (![west, south, east, north].every(Number.isFinite)) {
+    return null;
+  }
+
+  return {
+    west: Math.min(west, east),
+    south: Math.min(south, north),
+    east: Math.max(west, east),
+    north: Math.max(south, north),
+  };
 }
 
 function clampLatitude(value) {
@@ -118,6 +141,225 @@ function mergeStats(target, source) {
   target.vertexCount += source.vertexCount ?? 0;
 
   return target;
+}
+
+function dedupeFlatPoints(points, closePath) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return [];
+  }
+
+  const deduped = [points[0], points[1]];
+
+  for (let index = 2; index < points.length; index += 2) {
+    const lon = points[index];
+    const lat = points[index + 1];
+    const previousLon = deduped[deduped.length - 2];
+    const previousLat = deduped[deduped.length - 1];
+
+    if (nearlyEqual(lon, previousLon) && nearlyEqual(lat, previousLat)) {
+      continue;
+    }
+
+    deduped.push(lon, lat);
+  }
+
+  if (
+    closePath &&
+    deduped.length >= 6 &&
+    nearlyEqual(deduped[0], deduped[deduped.length - 2]) &&
+    nearlyEqual(deduped[1], deduped[deduped.length - 1])
+  ) {
+    deduped.length -= 2;
+  }
+
+  return deduped;
+}
+
+function clipSegmentToBounds(ax, ay, bx, by, bounds) {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = bx - ax;
+  const dy = by - ay;
+
+  const clip = (p, q) => {
+    if (Math.abs(p) <= 1e-9) {
+      return q >= 0;
+    }
+
+    const ratio = q / p;
+
+    if (p < 0) {
+      if (ratio > t1) {
+        return false;
+      }
+      if (ratio > t0) {
+        t0 = ratio;
+      }
+      return true;
+    }
+
+    if (ratio < t0) {
+      return false;
+    }
+    if (ratio < t1) {
+      t1 = ratio;
+    }
+    return true;
+  };
+
+  if (
+    !clip(-dx, ax - bounds.west) ||
+    !clip(dx, bounds.east - ax) ||
+    !clip(-dy, ay - bounds.south) ||
+    !clip(dy, bounds.north - ay)
+  ) {
+    return null;
+  }
+
+  return [
+    ax + dx * t0,
+    ay + dy * t0,
+    ax + dx * t1,
+    ay + dy * t1,
+  ];
+}
+
+function clipPolylineToBounds(points, bounds) {
+  if (!Array.isArray(points) || points.length < 4 || !bounds) {
+    return [];
+  }
+
+  const segments = [];
+  let current = [];
+
+  for (let index = 2; index < points.length; index += 2) {
+    const clipped = clipSegmentToBounds(
+      points[index - 2],
+      points[index - 1],
+      points[index],
+      points[index + 1],
+      bounds,
+    );
+
+    if (!clipped) {
+      if (current.length >= 4) {
+        segments.push(dedupeFlatPoints(current, false));
+      }
+      current = [];
+      continue;
+    }
+
+    const [startLon, startLat, endLon, endLat] = clipped;
+
+    if (current.length === 0) {
+      current = [startLon, startLat, endLon, endLat];
+      continue;
+    }
+
+    const lastLon = current[current.length - 2];
+    const lastLat = current[current.length - 1];
+
+    if (!nearlyEqual(lastLon, startLon) || !nearlyEqual(lastLat, startLat)) {
+      if (current.length >= 4) {
+        segments.push(dedupeFlatPoints(current, false));
+      }
+      current = [startLon, startLat, endLon, endLat];
+      continue;
+    }
+
+    if (!nearlyEqual(lastLon, endLon) || !nearlyEqual(lastLat, endLat)) {
+      current.push(endLon, endLat);
+    }
+  }
+
+  if (current.length >= 4) {
+    segments.push(dedupeFlatPoints(current, false));
+  }
+
+  return segments.filter((segment) => segment.length >= 4);
+}
+
+function clipPolygonWithEdge(points, isInside, intersect) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return [];
+  }
+
+  const output = [];
+  let previous = points[points.length - 1];
+
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const previousInside = isInside(previous);
+    const currentInside = isInside(current);
+
+    if (currentInside) {
+      if (!previousInside) {
+        output.push(intersect(previous, current));
+      }
+      output.push(current);
+    } else if (previousInside) {
+      output.push(intersect(previous, current));
+    }
+
+    previous = current;
+  }
+
+  return output;
+}
+
+function clipPolygonToBounds(points, bounds) {
+  if (!Array.isArray(points) || points.length < 6 || !bounds) {
+    return null;
+  }
+
+  let clipped = [];
+
+  for (let index = 0; index < points.length; index += 2) {
+    clipped.push([points[index], points[index + 1]]);
+  }
+
+  clipped = clipPolygonWithEdge(
+    clipped,
+    ([lon]) => lon >= bounds.west,
+    ([startLon, startLat], [endLon, endLat]) => {
+      const deltaLon = endLon - startLon;
+      const ratio = Math.abs(deltaLon) <= 1e-9 ? 0 : (bounds.west - startLon) / deltaLon;
+      return [bounds.west, startLat + (endLat - startLat) * ratio];
+    },
+  );
+  clipped = clipPolygonWithEdge(
+    clipped,
+    ([lon]) => lon <= bounds.east,
+    ([startLon, startLat], [endLon, endLat]) => {
+      const deltaLon = endLon - startLon;
+      const ratio = Math.abs(deltaLon) <= 1e-9 ? 0 : (bounds.east - startLon) / deltaLon;
+      return [bounds.east, startLat + (endLat - startLat) * ratio];
+    },
+  );
+  clipped = clipPolygonWithEdge(
+    clipped,
+    ([, lat]) => lat >= bounds.south,
+    ([startLon, startLat], [endLon, endLat]) => {
+      const deltaLat = endLat - startLat;
+      const ratio = Math.abs(deltaLat) <= 1e-9 ? 0 : (bounds.south - startLat) / deltaLat;
+      return [startLon + (endLon - startLon) * ratio, bounds.south];
+    },
+  );
+  clipped = clipPolygonWithEdge(
+    clipped,
+    ([, lat]) => lat <= bounds.north,
+    ([startLon, startLat], [endLon, endLat]) => {
+      const deltaLat = endLat - startLat;
+      const ratio = Math.abs(deltaLat) <= 1e-9 ? 0 : (bounds.north - startLat) / deltaLat;
+      return [startLon + (endLon - startLon) * ratio, bounds.north];
+    },
+  );
+
+  if (clipped.length < 3) {
+    return null;
+  }
+
+  return dedupeFlatPoints(clipped.flat(), true);
 }
 
 function parseGeoJSON(data) {
@@ -317,7 +559,7 @@ function simplifyLine(points, tolerance) {
   return simplified.length >= 4 ? simplified : points.slice();
 }
 
-function normalizePath(path, options = {}, closePath = true) {
+function normalizePathPoints(path, options = {}, closePath = true) {
   if (!Array.isArray(path) || path.length < (closePath ? 4 : 2)) {
     return null;
   }
@@ -375,15 +617,47 @@ function normalizePath(path, options = {}, closePath = true) {
     return null;
   }
 
+  return normalized;
+}
+
+function finalizeNormalizedPath(points, options = {}, closePath = true) {
+  const settings = { ...DEFAULT_OPTIONS, ...options };
+  const minimumLength = closePath ? 6 : 4;
+
+  if (!Array.isArray(points) || points.length < minimumLength) {
+    return null;
+  }
+
+  const deduped = dedupeFlatPoints(points, closePath);
+
+  if (deduped.length < minimumLength) {
+    return null;
+  }
+
   const simplified = settings.simplifyTolerance > 0
     ? closePath
-      ? simplifyRing(normalized, settings.simplifyTolerance)
-      : simplifyLine(normalized, settings.simplifyTolerance)
-    : normalized;
+      ? simplifyRing(deduped, settings.simplifyTolerance)
+      : simplifyLine(deduped, settings.simplifyTolerance)
+    : deduped;
 
   return simplified.length >= minimumLength
     ? Float32Array.from(simplified)
-    : Float32Array.from(normalized);
+    : Float32Array.from(deduped);
+}
+
+function normalizePath(path, options = {}, closePath = true) {
+  const normalized = normalizePathPoints(path, options, closePath);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const clipBounds = normalizeClipBounds(options.clipBounds);
+  const clipped = closePath && clipBounds
+    ? clipPolygonToBounds(normalized, clipBounds)
+    : normalized;
+
+  return finalizeNormalizedPath(clipped, options, closePath);
 }
 
 function normalizeRing(ring, options = {}) {
@@ -391,7 +665,25 @@ function normalizeRing(ring, options = {}) {
 }
 
 function normalizeLine(line, options = {}) {
-  return normalizePath(line, options, false);
+  const normalizedLines = normalizeClippedLines(line, options);
+  return normalizedLines[0] ?? null;
+}
+
+function normalizeClippedLines(line, options = {}) {
+  const normalized = normalizePathPoints(line, options, false);
+
+  if (!normalized) {
+    return [];
+  }
+
+  const clipBounds = normalizeClipBounds(options.clipBounds);
+  const clippedSegments = clipBounds
+    ? clipPolylineToBounds(normalized, clipBounds)
+    : [normalized];
+
+  return clippedSegments
+    .map((segment) => finalizeNormalizedPath(segment, options, false))
+    .filter(Boolean);
 }
 
 function computeBounds(paths) {
@@ -525,14 +817,16 @@ function prepareGeoJSON(data, options = {}) {
 
         sourceVertexCount += line.length;
 
-        const normalizedLine = normalizeLine(line, options);
+        const normalizedLines = normalizeClippedLines(line, options);
 
-        if (!normalizedLine) {
+        if (normalizedLines.length === 0) {
           continue;
         }
 
-        lines.push(normalizedLine);
-        vertexCount += normalizedLine.length / 2;
+        normalizedLines.forEach((normalizedLine) => {
+          lines.push(normalizedLine);
+          vertexCount += normalizedLine.length / 2;
+        });
       }
     }
   }
@@ -603,6 +897,9 @@ const MapLoader = {
   extractFeatures,
   normalizeRing,
   normalizeLine,
+  normalizeClippedLines,
+  clipPolygonToBounds,
+  clipPolylineToBounds,
   simplifyRing,
   simplifyLine,
   computeBounds,
