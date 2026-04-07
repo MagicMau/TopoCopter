@@ -289,6 +289,27 @@ describe('computeFixedFramingFromBounds', () => {
     expect(result.zoom).toBeCloseTo(2, 5);
   });
 
+  it('supports cover-fit framing – fills the screen in the dominant dimension', () => {
+    // Landscape map (400 wide × 200 tall) in a portrait viewport (300 × 800).
+    // cover picks max(300/400, 800/200) = max(0.75, 4) = 4 → fills the height.
+    const bounds = { minX: 0, maxX: 400, minY: 0, maxY: 200 };
+
+    const result = computeFixedFramingFromBounds(bounds, 300, 800, 0, Infinity, 'cover');
+
+    expect(result.zoom).toBeCloseTo(4, 5);
+  });
+
+  it('cover-fit in landscape equals width-fit when width is more constraining', () => {
+    // Landscape map (400×200) in a landscape viewport (800×300).
+    // zoomX = 800/400 = 2, zoomY = 300/200 = 1.5 → cover = max = 2 = width-fit.
+    const bounds = { minX: 0, maxX: 400, minY: 0, maxY: 200 };
+
+    const cover = computeFixedFramingFromBounds(bounds, 800, 300, 0, Infinity, 'cover');
+    const width = computeFixedFramingFromBounds(bounds, 800, 300, 0, Infinity, 'width');
+
+    expect(cover.zoom).toBeCloseTo(width.zoom, 5);
+  });
+
   it('returns null for invalid bounds', () => {
     expect(
       computeFixedFramingFromBounds({ minX: 0, maxX: Number.NaN, minY: 0, maxY: 10 }, 800, 600),

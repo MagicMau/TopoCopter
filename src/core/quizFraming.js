@@ -187,7 +187,9 @@ export function computeFixedFramingFromBounds(
     ? zoomX
     : requestedFitMode === 'height'
       ? zoomY
-      : Math.min(zoomX, zoomY);
+      : requestedFitMode === 'cover'
+        ? Math.max(zoomX, zoomY)
+        : Math.min(zoomX, zoomY);
   const zoom = Math.min(rawZoom, maxZoom > 0 ? maxZoom : Infinity);
 
   const safeZoom = Math.max(zoom, 0.0001);

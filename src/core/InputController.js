@@ -486,6 +486,10 @@ export default class InputController {
     return Phaser.Math.Clamp(zoom, this.minZoom, this.maxZoom);
   }
 
+  setDragLocked(locked) {
+    this.dragLocked = Boolean(locked);
+  }
+
   setZoomLimits(minZoom, maxZoom = this.maxZoom) {
     const before = {
       minZoom: this.minZoom,

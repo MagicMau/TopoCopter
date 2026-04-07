@@ -646,6 +646,11 @@ export default class HelicopterScene extends MapScene {
   /**
    * Apply a precomputed framing state directly to the camera and input
    * controller.
+   *
+   * When `fitMode` is `'cover'` the viewport is portrait relative to the map:
+   * re-enable camera follow so the helicopter stays visible while the zoom is
+   * locked and drag is allowed for manual panning.  In all other modes (width /
+   * contain) the camera is locked in place so the full map is always visible.
    */
   _applyFixedFramingState(framing, reason = 'manual') {
     if (!framing) return;
@@ -664,6 +669,16 @@ export default class HelicopterScene extends MapScene {
     this.inputController?.setZoomLimits(z, z);
     this.inputController?.clampCamera?.();
     this.baseMapMinZoom = z;
+
+    // Portrait (cover) mode: follow the helicopter so it is always on screen.
+    // Landscape (width/contain) mode: lock the camera so the full map is visible.
+    if (framing.fitMode === 'cover') {
+      this.setCameraFollowPaused?.(false);
+      this.inputController?.setDragLocked?.(false);
+    } else {
+      this.setCameraFollowPaused?.(true);
+      this.inputController?.setDragLocked?.(true);
+    }
 
     debugLog('FRAMING-APPLY', `Applied fixed framing (${reason})`, this.getDebugSceneSnapshot({
       quizSetId: this._currentQuizSetId,
@@ -871,7 +886,14 @@ export default class HelicopterScene extends MapScene {
       datasets,
     );
     const framingFitMode = projectionFramingBounds
-      ? (typeof level?.projection?.fitMode === 'string' ? level.projection.fitMode : 'width')
+      ? (() => {
+          const mapW = projectionFramingBounds.maxX - projectionFramingBounds.minX;
+          const mapH = Math.max(projectionFramingBounds.maxY - projectionFramingBounds.minY, 1);
+          const viewAspect = viewWidth / Math.max(viewHeight, 1);
+          // Portrait viewport relative to the map's aspect ratio → cover (fill height).
+          // Landscape viewport → width-fit (fill width, current landscape behaviour).
+          return viewAspect < mapW / mapH ? 'cover' : 'width';
+        })()
       : 'contain';
     const framing = computeFixedFramingFromBounds(
       targetBounds,
@@ -895,7 +917,7 @@ export default class HelicopterScene extends MapScene {
       framing,
     });
 
-    return framing;
+    return framing ? { ...framing, fitMode: framingFitMode } : null;
   }
 
   _initQuizController() {

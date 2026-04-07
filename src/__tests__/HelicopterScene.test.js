@@ -208,7 +208,8 @@ const makeFramingScene = () => {
   };
   scene.cameras = { main: camera };
   scene.uiCamera = { setViewport: vi.fn(), setSize: vi.fn() };
-  scene.inputController = { setZoomLimits: vi.fn(), clampCamera: vi.fn() };
+  scene.inputController = { setZoomLimits: vi.fn(), clampCamera: vi.fn(), setDragLocked: vi.fn() };
+  scene.setCameraFollowPaused = vi.fn();
   scene.overlayText = null;
   scene.syncZoomResponsiveElements = vi.fn();
   scene.layoutOverlay = vi.fn();
@@ -239,6 +240,40 @@ describe('HelicopterScene._applyFixedFramingState', () => {
     expect(scene.inputController.setZoomLimits).toHaveBeenCalledWith(2.5, 2.5);
     expect(scene.inputController.clampCamera).toHaveBeenCalled();
     expect(scene.baseMapMinZoom).toBe(2.5);
+  });
+
+  it('locks camera follow and drag for width/contain framing (landscape)', () => {
+    const scene = makeFramingScene();
+    const framing = {
+      zoom: 1.2,
+      cameraScrollX: 100,
+      cameraScrollY: 50,
+      centerX: 800,
+      centerY: 400,
+      fitMode: 'width',
+    };
+
+    scene._applyFixedFramingState(framing);
+
+    expect(scene.setCameraFollowPaused).toHaveBeenCalledWith(true);
+    expect(scene.inputController.setDragLocked).toHaveBeenCalledWith(true);
+  });
+
+  it('enables camera follow and drag for cover framing (portrait)', () => {
+    const scene = makeFramingScene();
+    const framing = {
+      zoom: 1.6,
+      cameraScrollX: 200,
+      cameraScrollY: 100,
+      centerX: 800,
+      centerY: 400,
+      fitMode: 'cover',
+    };
+
+    scene._applyFixedFramingState(framing);
+
+    expect(scene.setCameraFollowPaused).toHaveBeenCalledWith(false);
+    expect(scene.inputController.setDragLocked).toHaveBeenCalledWith(false);
   });
 
   it('is a no-op when framing is null', () => {
@@ -294,7 +329,10 @@ describe('HelicopterScene.handleResize with fixed framing', () => {
 });
 
 describe('HelicopterScene._computeFramingState with projection framing', () => {
-  it('fits the cropped projection window instead of target geometry bounds', () => {
+  // Map bounds: width=400, height=600 (portrait map, aspect 0.667).
+  // Viewport 390×844 (portrait, aspect 0.462 < 0.667) → cover mode.
+  // cover zoom = max(390/400, 844/600) = max(0.975, 1.407) = 1.407.
+  it('uses cover-fit for a portrait viewport relative to map bounds', () => {
     const scene = Object.create(HelicopterScene.prototype);
     scene._quizSetTargets = [{ id: 'country-iceland', lat: 65, lon: -19 }];
     scene._quizController = { level: { framingPaddingFactor: 0.25 } };
@@ -315,7 +353,60 @@ describe('HelicopterScene._computeFramingState with projection framing', () => {
     expect(scene._getProjectionFramingBounds).toHaveBeenCalled();
     expect(framing.centerX).toBeCloseTo(300);
     expect(framing.centerY).toBeCloseTo(350);
-    expect(framing.zoom).toBeCloseTo(390 / 400, 5);
+    // Cover zoom fills the height: 844 / 600 ≈ 1.407
+    expect(framing.zoom).toBeCloseTo(844 / 600, 5);
+    expect(framing.fitMode).toBe('cover');
+  });
+
+  // Map bounds: width=1024, height=527 (landscape map like N.Europe, aspect 1.94).
+  // Viewport 844×390 (landscape, aspect 2.16 > 1.94) → width mode.
+  // width zoom = 844/1024 ≈ 0.824.
+  it('uses width-fit for a landscape viewport relative to map bounds', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._quizSetTargets = [{ id: 'country-norway', lat: 62, lon: 10 }];
+    scene._quizController = { level: { framingPaddingFactor: 0.08 } };
+    scene._currentQuizSetId = 'quiz-noord-europa';
+    scene._getProjectionFramingBounds = vi.fn(() => ({
+      minX: 1536,
+      maxX: 2560,
+      minY: 760,
+      maxY: 1287,
+      centerX: 2048,
+      centerY: 1023,
+    }));
+    scene._getDatasets = vi.fn(() => ({}));
+    scene.projectLatLon = vi.fn(() => ({ x: 2048, y: 1023 }));
+
+    const framing = scene._computeFramingState(844, 390);
+
+    expect(framing.zoom).toBeCloseTo(844 / 1024, 5);
+    expect(framing.fitMode).toBe('width');
+  });
+
+  // Map bounds: width=1024, height=527 (landscape, aspect 1.94).
+  // Viewport 390×844 (portrait, aspect 0.46 < 1.94) → cover mode.
+  // cover zoom = max(390/1024, 844/527) = max(0.381, 1.601) = 1.601.
+  it('uses cover-fit for a portrait viewport with a landscape map (N.Europe scenario)', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._quizSetTargets = [{ id: 'country-norway', lat: 62, lon: 10 }];
+    scene._quizController = { level: { framingPaddingFactor: 0.08 } };
+    scene._currentQuizSetId = 'quiz-noord-europa';
+    scene._getProjectionFramingBounds = vi.fn(() => ({
+      minX: 1536,
+      maxX: 2560,
+      minY: 760,
+      maxY: 1287,
+      centerX: 2048,
+      centerY: 1023,
+    }));
+    scene._getDatasets = vi.fn(() => ({}));
+    scene.projectLatLon = vi.fn(() => ({ x: 2048, y: 1023 }));
+
+    const framing = scene._computeFramingState(390, 844);
+
+    // Cover zoom fills the height: 844/527 ≈ 1.601
+    expect(framing.zoom).toBeCloseTo(844 / 527, 5);
+    expect(framing.fitMode).toBe('cover');
   });
 });
 
