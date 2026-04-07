@@ -1,3 +1,5 @@
+import { AIRWOLF_ROTOR_REFERENCE, ROTOR_HOVER } from './audioProfiles.js';
+
 let _instance = null;
 
 /**
@@ -12,11 +14,11 @@ export function getAudioManager() {
   return _instance;
 }
 
-class AudioManager {
+export class AudioManager {
   constructor() {
-    this._ctx        = null;
-    this._rotorNodes = null; // { osc, gain, harmOsc, harmGain }
-    this._rotorRequested = false;
+    this._ctx             = null;
+    this._rotorNodes      = null; // { source, filter, masterGain }
+    this._rotorRequested  = false;
     this._warnedUnsupported = false;
   }
 
@@ -40,6 +42,54 @@ class AudioManager {
 
     this._ctx = new Ctor();
     return this._ctx;
+  }
+
+  /**
+   * Synthesise one blade-chop cycle as a PCM buffer.
+   *
+   * Buffer duration = 1 / AIRWOLF_ROTOR_REFERENCE.chopHz (≈ 0.148 s), so
+   * looping at playbackRate = 1.0 reproduces exactly the Airwolf reference
+   * chop cadence.  Increasing playbackRate raises both the chop rate and the
+   * blade-tone pitch together, which matches real-helicopter behaviour.
+   *
+   * The signal is shaped as a sharp impact transient (≈35 ms) plus a shorter
+   * resonant body, layered over tonal components at the Airwolf fundamental
+   * (A#1, 58.27 Hz) and its harmonics.  A small noise burst adds turbulence
+   * character without overwhelming the tonal content.
+   *
+   * @param {AudioContext} ctx
+   * @returns {AudioBuffer}
+   */
+  _createRotorChopBuffer(ctx) {
+    const sr       = ctx.sampleRate;
+    const duration = 1 / AIRWOLF_ROTOR_REFERENCE.chopHz; // ≈ 0.148 s
+    const len      = Math.floor(sr * duration);
+    const buf      = ctx.createBuffer(1, len, sr);
+    const ch       = buf.getChannelData(0);
+
+    const f1 = ROTOR_HOVER.freq; // A#1 ≈ 58.27 Hz
+
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+
+      // Two-stage amplitude envelope
+      const impact = Math.exp(-t * 28);          // fast attack, dies in ~35 ms
+      const body   = Math.exp(-t *  9) * 0.30;  // lingering resonance ~80 ms
+
+      // Harmonic series from MIDI-derived fundamental; 3rd partial is slightly
+      // detuned (+0.1 semitone) to avoid the overly-clean sound of integer ratios
+      const tone =
+        Math.sin(2 * Math.PI * f1       * t) * 0.55 +
+        Math.sin(2 * Math.PI * f1 * 2   * t) * 0.28 +
+        Math.sin(2 * Math.PI * f1 * 3.1 * t) * 0.12;
+
+      const noise = Math.random() * 2 - 1;
+
+      ch[i] = tone  * (impact * 0.65 + body * 0.35) +
+              noise * (impact * 0.20 + body * 0.05);
+    }
+
+    return buf;
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -90,68 +140,85 @@ class AudioManager {
     const ctx = this._ensureContext();
     if (!ctx || ctx.state !== 'running') return;
 
-    const gain = ctx.createGain();
-    gain.gain.value = 0.08;
-    gain.connect(ctx.destination);
+    // Loop a single synthesised blade-chop cycle
+    const chopBuf = this._createRotorChopBuffer(ctx);
+    const source  = ctx.createBufferSource();
+    source.buffer           = chopBuf;
+    source.loop             = true;
+    source.playbackRate.value = 1.0; // 1.0 = Airwolf hover baseline
 
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.value = 27;
-    osc.connect(gain);
-    osc.start();
+    // Gentle low-pass to round off the high-frequency edge of the noise burst
+    const filter = ctx.createBiquadFilter();
+    filter.type            = 'lowpass';
+    filter.frequency.value = ROTOR_HOVER.noiseFilterFreq;
 
-    const harmGain = ctx.createGain();
-    harmGain.gain.value = 0.04;
-    harmGain.connect(ctx.destination);
+    const masterGain = ctx.createGain();
+    masterGain.gain.value  = 0; // ramped to hover gain by setRotorProfile below
 
-    const harmOsc = ctx.createOscillator();
-    harmOsc.type = 'sawtooth';
-    harmOsc.frequency.value = 54;
-    harmOsc.connect(harmGain);
-    harmOsc.start();
+    source.connect(filter);
+    filter.connect(masterGain);
+    masterGain.connect(ctx.destination);
 
-    this._rotorNodes = { osc, gain, harmOsc, harmGain };
+    source.start();
+
+    this._rotorNodes = { source, filter, masterGain };
+    this.setRotorProfile(ROTOR_HOVER);
   }
 
   /**
-   * Smoothly ramp rotor frequency and gain toward target values.
+   * Smoothly ramp rotor parameters toward the target profile.
    * Uses a first-order exponential approach so per-frame calls produce
    * smooth transitions without clicks.
    *
-   * @param {number} freq  Target fundamental frequency in Hz.
-   * @param {number} gain  Target gain (0–1).
+   * Accepts either a full profile object (as returned by interpolateRotorProfile)
+   * or the legacy two-argument form (freq, gain) for backward compatibility.
+   *
+   * @param {object|number} profileOrFreq  Profile object or raw freq value.
+   * @param {number}        [gain]         Gain (only used in legacy two-arg form).
    */
-  setRotorProfile(freq, gain) {
+  setRotorProfile(profileOrFreq, gain) {
     const ctx = this._ctx;
     if (!ctx || !this._rotorNodes) return;
     const now = ctx.currentTime;
     const TAU = 0.25; // time constant in seconds (~63% reached in 0.25 s)
     const scheduleTarget = (param, value) => {
+      if (!Number.isFinite(Number(value))) return;
       if (typeof param.cancelAndHoldAtTime === 'function') {
         param.cancelAndHoldAtTime(now);
       } else {
         param.cancelScheduledValues(now);
       }
-      param.setTargetAtTime(value, now, TAU);
+      param.setTargetAtTime(Number(value), now, TAU);
     };
 
-    scheduleTarget(this._rotorNodes.osc.frequency, freq);
-    scheduleTarget(this._rotorNodes.gain.gain, gain);
-    scheduleTarget(this._rotorNodes.harmOsc.frequency, freq * 2);
-    scheduleTarget(this._rotorNodes.harmGain.gain, gain * 0.5);
+    const profile =
+      typeof profileOrFreq === 'object' && profileOrFreq !== null
+        ? profileOrFreq
+        : {
+            chopHz:         Number(profileOrFreq),
+            gain:           gain,
+            noiseFilterFreq: ROTOR_HOVER.noiseFilterFreq,
+          };
+
+    // Normalise chop rate to the Airwolf reference cadence so that
+    // playbackRate = 1.0 at hover and scales proportionally with speed.
+    const rate = (profile.chopHz ?? ROTOR_HOVER.chopHz) / AIRWOLF_ROTOR_REFERENCE.chopHz;
+    scheduleTarget(this._rotorNodes.source.playbackRate, rate);
+    scheduleTarget(this._rotorNodes.masterGain.gain, profile.gain);
+    if (profile.noiseFilterFreq != null) {
+      scheduleTarget(this._rotorNodes.filter.frequency, profile.noiseFilterFreq);
+    }
   }
 
   /** Disconnect and discard all rotor nodes. */
   stopRotorLoop() {
     this._rotorRequested = false;
     if (!this._rotorNodes) return;
-    const { osc, gain, harmOsc, harmGain } = this._rotorNodes;
-    osc.stop();
-    harmOsc.stop();
-    osc.disconnect();
-    gain.disconnect();
-    harmOsc.disconnect();
-    harmGain.disconnect();
+    const { source, filter, masterGain } = this._rotorNodes;
+    try { source.stop(); } catch (_) { /* already stopped */ }
+    source.disconnect();
+    filter.disconnect();
+    masterGain.disconnect();
     this._rotorNodes = null;
   }
 
