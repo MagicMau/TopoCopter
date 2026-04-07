@@ -21,6 +21,7 @@ export class AudioManager {
     this._rotorRequested  = false;
     this._warnedUnsupported = false;
     this._unlockPromise   = null;
+    this._pendingTones    = []; // { tones, expireAt } items queued before context is running
   }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
@@ -105,14 +106,13 @@ export class AudioManager {
     const ctx = this._ensureContext();
     if (!ctx) return Promise.resolve(false);
 
-    const startPendingRotor = () => {
-      if (this._rotorRequested) {
-        this.startRotorLoop();
-      }
+    const onRunning = () => {
+      if (this._rotorRequested) this.startRotorLoop();
+      this._flushPendingTones();
     };
 
     if (ctx.state === 'running') {
-      startPendingRotor();
+      onRunning();
       return Promise.resolve(true);
     }
 
@@ -132,8 +132,28 @@ export class AudioManager {
 
     this._unlockPromise = resumePromise
       .then(() => {
-        startPendingRotor();
-        return true;
+        if (ctx.state === 'running') {
+          onRunning();
+          return true;
+        }
+
+        // iOS Safari may resolve resume() but leave the context suspended.
+        // Schedule one more attempt after a short delay as a best-effort fallback.
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            if (ctx.state === 'running') {
+              onRunning();
+              resolve(true);
+              return;
+            }
+            Promise.resolve(ctx.resume())
+              .then(() => {
+                if (ctx.state === 'running') onRunning();
+                resolve(ctx.state === 'running');
+              })
+              .catch(() => resolve(false));
+          }, 100);
+        });
       })
       .catch((error) => {
         if (typeof console !== 'undefined') {
@@ -252,7 +272,7 @@ export class AudioManager {
 
   /** Short ascending two-tone chime: target located. */
   playFoundSound() {
-    this._playTones([
+    this._playTonesWhenReady([
       { freq: 880,  startDelay: 0,    duration: 0.12, gain: 0.25 },
       { freq: 1320, startDelay: 0.10, duration: 0.18, gain: 0.25 },
     ]);
@@ -260,7 +280,7 @@ export class AudioManager {
 
   /** Ascending three-note fanfare: all targets found (win). */
   playWinSound() {
-    this._playTones([
+    this._playTonesWhenReady([
       { freq: 523, startDelay: 0,    duration: 0.15, gain: 0.28 },
       { freq: 659, startDelay: 0.15, duration: 0.15, gain: 0.28 },
       { freq: 784, startDelay: 0.30, duration: 0.35, gain: 0.30 },
@@ -269,10 +289,37 @@ export class AudioManager {
 
   /** Descending two-note tone: time ran out (loss). */
   playLossSound() {
-    this._playTones([
+    this._playTonesWhenReady([
       { freq: 440, startDelay: 0,    duration: 0.22, gain: 0.25 },
       { freq: 294, startDelay: 0.22, duration: 0.45, gain: 0.22 },
     ]);
+  }
+
+  /**
+   * Play tones immediately if the context is running, otherwise queue them for
+   * the next successful unlock (discarded if not played within 2 seconds).
+   *
+   * @param {Array<{freq: number, startDelay: number, duration: number, gain: number}>} tones
+   */
+  _playTonesWhenReady(tones) {
+    if (this.isReady()) {
+      this._playTones(tones);
+      return;
+    }
+    this._pendingTones.push({ tones, expireAt: Date.now() + 2000 });
+  }
+
+  /** Play all non-expired queued tones. Called after the context transitions to running. */
+  _flushPendingTones() {
+    if (!this.isReady() || this._pendingTones.length === 0) return;
+    const now = Date.now();
+    const pending = this._pendingTones;
+    this._pendingTones = [];
+    for (const { tones, expireAt } of pending) {
+      if (expireAt > now) {
+        this._playTones(tones);
+      }
+    }
   }
 
   /**

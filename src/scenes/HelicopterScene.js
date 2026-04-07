@@ -355,7 +355,7 @@ export default class HelicopterScene extends MapScene {
   }
 
   handleCommandDown(worldX, worldY) {
-    this._audioManager?.unlock();
+    this._audioManager?.unlock()?.then(() => this._audioManager?.startRotorLoop());
 
     if (this._runEnded || this._answerRevealActive) {
       return;
