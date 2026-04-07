@@ -35,7 +35,7 @@ const syncViewport = (game = null) => {
   applyViewportSize({ width, height });
 
   if (game && (game.scale.width !== width || game.scale.height !== height)) {
-    game.scale.resize(width, height);
+    game.scale.setParentSize?.(width, height);
   }
 
   return { width, height };
