@@ -213,15 +213,17 @@ export default class Projection {
     const preserveAspect = options.preserveAspect !== false;
 
     if (preserveAspect) {
-      const scale = innerWidth > 0 && innerHeight > 0
-        ? Math.min(innerWidth / xSpan, innerHeight / ySpan)
-        : 0;
-
-      this.scaleX = scale;
-      this.scaleY = scale;
-      this.mapWidth = xSpan * scale;
-      this.mapHeight = ySpan * scale;
+      // Constrain X-axis to fit within viewport width, allow Y-axis to be flexible
+      this.scaleX = innerWidth > 0 ? innerWidth / xSpan : 0;
+      // Calculate Y scale based on available height, but will be centered if taller than needed
+      this.scaleY = innerHeight > 0 ? innerHeight / ySpan : 0;
+      
+      this.mapWidth = xSpan * this.scaleX;
+      this.mapHeight = ySpan * this.scaleY;
+      
+      // Center horizontally (constrained by width)
       this.offsetX = this.padding.left + (innerWidth - this.mapWidth) * 0.5;
+      // Center vertically (may have extra space if scaleY allows content to be smaller)
       this.offsetY = this.padding.top + (innerHeight - this.mapHeight) * 0.5;
     } else {
       this.scaleX = innerWidth / xSpan;
