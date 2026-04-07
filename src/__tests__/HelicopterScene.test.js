@@ -134,7 +134,6 @@ describe('HelicopterScene.setHelicopterTarget', () => {
 
     expect(scene.helicopter.setTarget).toHaveBeenCalledWith(120, 340, {
       stopThreshold: 2.5,
-      snapOnArrival: true,
     });
   });
 
@@ -146,7 +145,6 @@ describe('HelicopterScene.setHelicopterTarget', () => {
 
     expect(scene.helicopter.setTarget).toHaveBeenCalledWith(500, 600, {
       stopThreshold: 2.5,
-      snapOnArrival: true,
     });
   });
 });
@@ -707,7 +705,6 @@ describe('HelicopterScene._onQuizTargetChange (spelling mode)', () => {
     expect(scene._spellingAutoFlyActive).toBe(true);
     expect(scene.helicopter.setTarget).toHaveBeenCalledWith(300, 400, {
       stopThreshold: 3,
-      snapOnArrival: true,
     });
     expect(scene._activeTargetReveal).toEqual(expect.objectContaining({ kind: 'circle' }));
     expect(scene._activeTargetGeometry).toEqual(expect.objectContaining({

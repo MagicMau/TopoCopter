@@ -212,15 +212,40 @@ export default class MapScene extends Phaser.Scene {
 
     const clipBounds = this.getGeoClipBounds();
 
-    // When a projection restricts the view to a sub-region, add a dimmed copy
-    // of the full world behind the main relief so the area outside the
-    // projection bounds shows terrain instead of plain background colour.
+    // Pre-compute crop parameters so both the background and main images share
+    // the same geographic coordinate mapping.
+    let cropParams = null;
     if (clipBounds) {
+      const texture = this.textures.get(DATA_CACHE_KEYS.WORLD_RELIEF);
+      const source = texture?.getSourceImage?.();
+      const sourceWidth = Number(source?.width ?? source?.naturalWidth);
+      const sourceHeight = Number(source?.height ?? source?.naturalHeight);
+
+      if (Number.isFinite(sourceWidth) && sourceWidth > 0 && Number.isFinite(sourceHeight) && sourceHeight > 0) {
+        const cropX = ((clipBounds.west + 180) / 360) * sourceWidth;
+        const cropY = ((90 - clipBounds.north) / 180) * sourceHeight;
+        const cropWidth = ((clipBounds.east - clipBounds.west) / 360) * sourceWidth;
+        const cropHeight = ((clipBounds.north - clipBounds.south) / 180) * sourceHeight;
+        const scaleX = this.projection.mapWidth / Math.max(cropWidth, 1);
+        const scaleY = this.projection.mapHeight / Math.max(cropHeight, 1);
+        cropParams = {
+          cropX, cropY, cropWidth, cropHeight, scaleX, scaleY,
+          posX: this.projection.offsetX - cropX * scaleX,
+          posY: this.projection.offsetY - cropY * scaleY,
+        };
+      }
+    }
+
+    // When a projection restricts the view to a sub-region, add a dimmed copy
+    // of the full world behind the main relief.  Position and scale it using the
+    // same geographic mapping as the main image (same origin, same scaleX/Y) so
+    // the surrounding world terrain aligns correctly with the visible crop region.
+    if (cropParams) {
       this.reliefBackgroundImage = this.registerWorldObject(
         this.add
-          .image(0, 0, DATA_CACHE_KEYS.WORLD_RELIEF)
+          .image(cropParams.posX, cropParams.posY, DATA_CACHE_KEYS.WORLD_RELIEF)
           .setOrigin(0, 0)
-          .setDisplaySize(WORLD_LAYOUT.WIDTH, WORLD_LAYOUT.HEIGHT)
+          .setScale(cropParams.scaleX, cropParams.scaleY)
           .setAlpha(MAP_STYLE.RELIEF_BACKGROUND_ALPHA)
           .setTint(PALETTE.reliefTint)
           .setDepth(WORLD_DEPTHS.RELIEF - 0.1),
@@ -240,28 +265,12 @@ export default class MapScene extends Phaser.Scene {
         .setDepth(WORLD_DEPTHS.RELIEF),
     );
 
-    if (clipBounds && typeof reliefImage?.setCrop === 'function') {
-      const texture = this.textures.get(DATA_CACHE_KEYS.WORLD_RELIEF);
-      const source = texture?.getSourceImage?.();
-      const sourceWidth = Number(source?.width ?? source?.naturalWidth);
-      const sourceHeight = Number(source?.height ?? source?.naturalHeight);
-
-      if (Number.isFinite(sourceWidth) && Number.isFinite(sourceHeight)) {
-        const cropX = ((clipBounds.west + 180) / 360) * sourceWidth;
-        const cropY = ((90 - clipBounds.north) / 180) * sourceHeight;
-        const cropWidth = ((clipBounds.east - clipBounds.west) / 360) * sourceWidth;
-        const cropHeight = ((clipBounds.north - clipBounds.south) / 180) * sourceHeight;
-        const scaleX = this.projection.mapWidth / Math.max(cropWidth, 1);
-        const scaleY = this.projection.mapHeight / Math.max(cropHeight, 1);
-
-        reliefImage.setCrop(cropX, cropY, cropWidth, cropHeight);
-        reliefImage.setScale(scaleX, scaleY);
-        reliefImage.setPosition(
-          this.projection.offsetX - (cropX * scaleX),
-          this.projection.offsetY - (cropY * scaleY),
-        );
-        return reliefImage;
-      }
+    if (cropParams && typeof reliefImage?.setCrop === 'function') {
+      const { cropX, cropY, cropWidth, cropHeight, scaleX, scaleY, posX, posY } = cropParams;
+      reliefImage.setCrop(cropX, cropY, cropWidth, cropHeight);
+      reliefImage.setScale(scaleX, scaleY);
+      reliefImage.setPosition(posX, posY);
+      return reliefImage;
     }
 
     reliefImage.setDisplaySize(this.projection.mapWidth, this.projection.mapHeight);

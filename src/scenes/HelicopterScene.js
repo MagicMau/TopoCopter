@@ -433,14 +433,12 @@ export default class HelicopterScene extends MapScene {
     if (quizTarget) {
       this.helicopter.setTarget(quizTarget.x, quizTarget.y, {
         stopThreshold: this.getPreciseArrivalThreshold(),
-        snapOnArrival: true,
       });
       return;
     }
 
     this.helicopter.setTarget(target.x, target.y, {
       stopThreshold: this.getPreciseArrivalThreshold(),
-      snapOnArrival: true,
     });
   }
 
@@ -1097,7 +1095,6 @@ export default class HelicopterScene extends MapScene {
       if (this._spellingAutoFlyActive) {
         this.helicopter.setTarget(pt.x, pt.y, {
           stopThreshold: this.getPreciseArrivalThreshold(),
-          snapOnArrival: true,
         });
       }
 
