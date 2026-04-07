@@ -1,4 +1,5 @@
 import { OVERLAY_STYLE, PALETTE, WORLD_DEPTHS } from './styles.js';
+import { getSafeAreaInsets } from '../core/safeArea.js';
 
 const PAD           = 16;
 const PROGRESS_W    = 180;
@@ -167,9 +168,10 @@ export default class QuizHUD {
   }
 
   _layout() {
-    const sw = this._scene?.scale?.width  ?? 400;
-    const rx = sw - PAD;       // right edge anchor
-    let   y  = PAD;
+    const sw         = this._scene?.scale?.width  ?? 400;
+    const rightInset = getSafeAreaInsets().right;
+    const rx         = sw - PAD - rightInset;  // pull left of notch/Dynamic-Island
+    let   y          = PAD;
 
     const place = (obj) => {
       if (!obj?.visible) return;
