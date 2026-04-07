@@ -15,10 +15,14 @@ import {
 } from '../quiz/targetGeometry.js';
 import QuizHUD from '../ui/QuizHUD.js';
 import ResultOverlay from '../ui/ResultOverlay.js';
+import TypingOverlay from '../ui/TypingOverlay.js';
 import { DATA_CACHE_KEYS } from './PreloadScene.js';
 import { computeFixedFramingFromBounds } from '../core/quizFraming.js';
 import { getAudioManager } from '../audio/AudioManager.js';
 import { interpolateRotorProfile } from '../audio/audioProfiles.js';
+import { QUESTION_MODE } from '../quiz/questionModes.js';
+import { matchesAnswer } from '../quiz/answerNormalizer.js';
+import { getDutchCategoryLabel } from '../quiz/categoryLabels.js';
 import {
   debugLog,
   describeCameraView,
@@ -77,10 +81,16 @@ export default class HelicopterScene extends MapScene {
     this._answerRevealActive = false;
     this._pendingAdvanceEvent = null;
 
+    // Spelling-mode sub-state (live within the _answerRevealActive umbrella)
+    this._spellingAutoFlyActive    = false; // helicopter flying to spelling target
+    this._spellingWaitingForInput  = false; // typing overlay is visible
+    this._typingOverlay            = null;
+
     // Run state
     this._runEnded           = false;
     this._searchTimerDuration = 0;   // ms per target for current quiz set
     this._currentQuizSetId   = null; // saved for retry
+    this._currentPlayMode    = null; // saved for retry
 
     // Fixed framing (set when a quiz set with fixedFraming:true is loaded)
     this._fixedFramingActive = false;
@@ -198,11 +208,13 @@ export default class HelicopterScene extends MapScene {
     this._quizHUD?.destroy();
     this._targetRevealEffect?.destroy();
     this._targetVisualizer?.destroy();
+    this._typingOverlay?.destroy();
     this._resultOverlay    = null;
     this._quizHUD          = null;
     this._targetRevealEffect = null;
     this._targetVisualizer = null;
     this._targetRevealEffect = null;
+    this._typingOverlay    = null;
     this._hoverDetector    = null;
     this._searchTimer      = null;
     this._quizController   = null;
@@ -211,11 +223,14 @@ export default class HelicopterScene extends MapScene {
     this._activeTargetReveal = null;
     this._activeTargetGeometry = null;
     this._answerRevealActive = false;
+    this._spellingAutoFlyActive   = false;
+    this._spellingWaitingForInput = false;
     this._pendingAdvanceEvent = null;
 
     this._runEnded            = false;
     this._searchTimerDuration = 0;
     this._currentQuizSetId    = null;
+    this._currentPlayMode     = null;
 
     this._fixedFramingActive = false;
     this._quizSetTargets     = null;
@@ -942,6 +957,7 @@ export default class HelicopterScene extends MapScene {
       onComplete:     (progress)         => this._onQuizComplete(progress),
       playMode:       this._resolveStartPlayMode(),
     });
+    this._currentPlayMode = this._resolveStartPlayMode();
 
     // Check for a curated quiz set selected from QuizSelectionScene
     const bootstrapQuizSetData = this._resolveBootstrapQuizSetData();
@@ -1050,6 +1066,9 @@ export default class HelicopterScene extends MapScene {
     this._pendingAdvanceEvent?.remove?.(false);
     this._pendingAdvanceEvent = null;
     this._answerRevealActive = false;
+    this._spellingAutoFlyActive   = false;
+    this._spellingWaitingForInput = false;
+    this._typingOverlay?.hide();
     this._activeTarget = target;
     this._targetRevealEffect?.clear();
     const pt = this.projectLatLon(target.lat, target.lon);
@@ -1064,25 +1083,44 @@ export default class HelicopterScene extends MapScene {
       datasets,
     );
 
-    if (pt) {
-      this._targetVisualizer?.showTarget(
-        pt.x,
-        pt.y,
-        this.getTargetScreenRadius(),
-      );
-    } else {
-      this._targetVisualizer?.hideTarget();
-    }
-
     this._hoverDetector?.reset();
 
-    // Restart the per-target search timer
-    if (this._searchTimerDuration > 0) {
-      this._searchTimer?.start(this._searchTimerDuration);
-    }
-
     const levelName = this._quizController?.level?.name ?? '';
-    this._quizHUD?.showTarget(target.name, levelName, progress);
+    const isSpelling = target.questionMode === QUESTION_MODE.SPELLING;
+
+    if (isSpelling) {
+      // Spelling mode: auto-fly the helicopter to the target; do not show the
+      // target ring or the answer text, and do not start the search timer.
+      this._targetVisualizer?.hideTarget();
+      this._answerRevealActive    = true; // blocks all manual input
+      this._spellingAutoFlyActive = true;
+
+      if (pt && this.helicopter?.setTarget) {
+        this.helicopter.setTarget(pt.x, pt.y, {
+          stopThreshold: this.getPreciseArrivalThreshold(),
+          snapOnArrival: true,
+        });
+      }
+
+      this._quizHUD?.showSpellingTarget(target.category ?? '', levelName, progress);
+    } else {
+      // Locate mode: show target ring, timer, and the answer text in the HUD.
+      if (pt) {
+        this._targetVisualizer?.showTarget(
+          pt.x,
+          pt.y,
+          this.getTargetScreenRadius(),
+        );
+      } else {
+        this._targetVisualizer?.hideTarget();
+      }
+
+      if (this._searchTimerDuration > 0) {
+        this._searchTimer?.start(this._searchTimerDuration);
+      }
+
+      this._quizHUD?.showTarget(target.name, levelName, progress);
+    }
 
     debugLog('QUIZ-TARGET', 'Activated quiz target', this.getDebugSceneSnapshot({
       quizSetId: this._currentQuizSetId,
@@ -1092,6 +1130,7 @@ export default class HelicopterScene extends MapScene {
         category: target.category ?? null,
         lat: target.lat ?? null,
         lon: target.lon ?? null,
+        questionMode: target.questionMode ?? null,
       },
       projectedTargetPoint: pt,
       revealKind: this._activeTargetReveal?.kind ?? null,
@@ -1194,11 +1233,11 @@ export default class HelicopterScene extends MapScene {
       score,
       total,
       onRetry: () => {
-        if (this._currentQuizSetId) {
-          this.scene.restart({ quizSetId: this._currentQuizSetId });
-        } else {
-          this.scene.restart();
-        }
+        const data = {
+          ...(this._currentQuizSetId ? { quizSetId: this._currentQuizSetId } : {}),
+          ...(this._currentPlayMode  ? { playMode:  this._currentPlayMode  } : {}),
+        };
+        this.scene.restart(Object.keys(data).length > 0 ? data : undefined);
       },
       onChoose: () => {
         this.scene.start('QuizSelectionScene');
@@ -1361,6 +1400,10 @@ export default class HelicopterScene extends MapScene {
     this._targetRevealEffect?.update(delta);
 
     if (this._answerRevealActive) {
+      // During auto-fly for spelling: check whether the helicopter has arrived.
+      if (this._spellingAutoFlyActive) {
+        this._checkSpellingArrival();
+      }
       return;
     }
 
@@ -1401,5 +1444,103 @@ export default class HelicopterScene extends MapScene {
     if (this._targetVisualizer && !result.complete) {
       this._targetVisualizer.updateProgress(result.progress, delta, result.hovering);
     }
+  }
+
+  /** Called each frame while `_spellingAutoFlyActive` is true. */
+  _checkSpellingArrival() {
+    if (!this._activeTargetPoint) return;
+
+    const pos = this.helicopter?.getPosition?.();
+    if (!pos) return;
+
+    const heliX = Array.isArray(pos) ? pos[0] : pos.x;
+    const heliY = Array.isArray(pos) ? pos[1] : pos.y;
+    if (!Number.isFinite(heliX) || !Number.isFinite(heliY)) return;
+
+    const targetGeometry = this._activeTargetGeometry;
+    let arrived;
+    if (targetGeometry) {
+      arrived = containsProjectedPoint(
+        targetGeometry,
+        heliX,
+        heliY,
+        this.getCameraZoom(),
+      );
+    } else {
+      const dx = heliX - this._activeTargetPoint.x;
+      const dy = heliY - this._activeTargetPoint.y;
+      const r  = this.getTargetHitRadius();
+      arrived  = dx * dx + dy * dy <= r * r;
+    }
+
+    if (arrived) {
+      this._spellingAutoFlyActive = false;
+      this._showSpellingPrompt();
+    }
+  }
+
+  /** Show the highlight and typing overlay for the active spelling target. */
+  _showSpellingPrompt() {
+    if (!this._activeTarget || this._spellingWaitingForInput) return;
+
+    this._spellingWaitingForInput = true;
+
+    // Pin the reveal effect so it stays bright while the player is typing.
+    if (this._activeTargetPoint) {
+      const reveal = this._activeTargetReveal ?? this.resolveTargetReveal(this._activeTarget);
+      this._targetRevealEffect?.playReveal(reveal, this._activeTargetPoint, {
+        durationMs: this.getRevealDurationMs(),
+      });
+      this._targetRevealEffect?.pin();
+    }
+
+    const target  = this._activeTarget;
+    const prompt  = this._buildSpellingPrompt(target);
+
+    const overlay = this._getOrCreateTypingOverlay();
+    overlay?.show({
+      prompt,
+      check:      (raw) => matchesAnswer(raw, target.name),
+      onAccepted: ()    => this._handleSpellingAccepted(),
+    });
+  }
+
+  /** Called by the TypingOverlay when the player enters the correct answer. */
+  _handleSpellingAccepted() {
+    this._spellingAutoFlyActive = false;
+    this._spellingWaitingForInput = false;
+    this._answerRevealActive      = false;
+    this._audioManager?.playFoundSound();
+    this._targetRevealEffect?.unpin();
+    this._targetRevealEffect?.clear();
+    this._typingOverlay?.hide();
+    this._quizController?.advance();
+  }
+
+  /**
+   * Build the Dutch prompt string shown inside the TypingOverlay.
+   * @param {object} target
+   * @returns {string}
+   */
+  _buildSpellingPrompt(target) {
+    const category = target?.category ?? '';
+    const label    = getDutchCategoryLabel(category, 'gebied');
+    return `Typ de naam van dit ${label}:`;
+  }
+
+  /** Lazily create and return the TypingOverlay (safe in non-browser envs). */
+  _getOrCreateTypingOverlay() {
+    if (!this._typingOverlay) {
+      try {
+        const host =
+          document?.getElementById?.('game-root') ?? document?.body ?? null;
+        if (host) {
+          this._typingOverlay = new TypingOverlay(host);
+        }
+      } catch (_) {
+        // No DOM available (test environment etc.)
+      }
+    }
+    return this._typingOverlay;
   }
 }

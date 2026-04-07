@@ -529,3 +529,293 @@ describe('HelicopterScene._resolveStartPlayMode', () => {
     expect(scene._resolveStartPlayMode()).toBe(null);
   });
 });
+
+// ── Spelling mode ──────────────────────────────────────────────────────────────
+
+describe('HelicopterScene.shouldHandleCommand (spelling mode)', () => {
+  const makeScene = () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._runEnded = false;
+    scene._answerRevealActive = false;
+    scene._spellingAutoFlyActive = false;
+    scene._spellingWaitingForInput = false;
+    scene.isWorldPointWithinBounds = vi.fn(() => true);
+    scene.getActiveTouchCount = vi.fn(() => 0);
+    scene.isPrimaryCommandPointer = vi.fn(() => true);
+    return scene;
+  };
+
+  it('returns false while auto-flying to a spelling target', () => {
+    const scene = makeScene();
+    scene._answerRevealActive = true;
+    scene._spellingAutoFlyActive = true;
+    expect(scene.shouldHandleCommand({ pointerType: 'mouse' }, 100, 100)).toBe(false);
+  });
+
+  it('returns false while waiting for typed input', () => {
+    const scene = makeScene();
+    scene._answerRevealActive = true;
+    scene._spellingWaitingForInput = true;
+    expect(scene.shouldHandleCommand({ pointerType: 'mouse' }, 100, 100)).toBe(false);
+  });
+});
+
+describe('HelicopterScene._checkSpellingArrival', () => {
+  const makeScene = (heliPos, targetPos, geometry = null) => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._spellingAutoFlyActive = true;
+    scene._spellingWaitingForInput = false;
+    scene._activeTargetPoint = targetPos;
+    scene._activeTargetGeometry = geometry;
+    scene.helicopter = { getPosition: vi.fn(() => heliPos) };
+    scene.getCameraZoom = vi.fn(() => 1);
+    scene.getTargetHitRadius = vi.fn(() => 50);
+    scene._showSpellingPrompt = vi.fn();
+    return scene;
+  };
+
+  it('calls _showSpellingPrompt when helicopter is within the hit radius', () => {
+    const scene = makeScene({ x: 100, y: 100 }, { x: 120, y: 110 });
+
+    scene._checkSpellingArrival();
+
+    expect(scene._spellingAutoFlyActive).toBe(false);
+    expect(scene._showSpellingPrompt).toHaveBeenCalled();
+  });
+
+  it('does not call _showSpellingPrompt when helicopter is outside hit radius', () => {
+    const scene = makeScene({ x: 0, y: 0 }, { x: 500, y: 500 });
+
+    scene._checkSpellingArrival();
+
+    expect(scene._spellingAutoFlyActive).toBe(true);
+    expect(scene._showSpellingPrompt).not.toHaveBeenCalled();
+  });
+
+  it('uses target geometry containment when projected geometry is available', () => {
+    const scene = makeScene(
+      { x: 200, y: 300 },
+      { x: 900, y: 900 },
+      { kind: 'circle', centerX: 200, centerY: 300, screenRadiusPx: 12 },
+    );
+
+    scene.getTargetHitRadius = vi.fn(() => 1);
+
+    scene._checkSpellingArrival();
+
+    expect(scene._spellingAutoFlyActive).toBe(false);
+    expect(scene._showSpellingPrompt).toHaveBeenCalled();
+  });
+
+  it('does nothing when _activeTargetPoint is null', () => {
+    const scene = makeScene({ x: 100, y: 100 }, null);
+
+    scene._checkSpellingArrival();
+
+    expect(scene._showSpellingPrompt).not.toHaveBeenCalled();
+  });
+});
+
+describe('HelicopterScene._showSpellingPrompt', () => {
+  it('pins the reveal and shows the typing overlay without playing success audio yet', () => {
+    const overlay = { show: vi.fn() };
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._activeTarget = { name: 'Finland', category: 'countries' };
+    scene._activeTargetPoint = { x: 300, y: 400 };
+    scene._activeTargetReveal = { kind: 'circle', screenRadiusPx: 40 };
+    scene._spellingWaitingForInput = false;
+    scene._targetRevealEffect = { playReveal: vi.fn(), pin: vi.fn() };
+    scene._audioManager = { playFoundSound: vi.fn() };
+    scene.getRevealDurationMs = vi.fn(() => 1200);
+    scene._getOrCreateTypingOverlay = vi.fn(() => overlay);
+
+    scene._showSpellingPrompt();
+
+    expect(scene._spellingWaitingForInput).toBe(true);
+    expect(scene._targetRevealEffect.playReveal).toHaveBeenCalledWith(
+      scene._activeTargetReveal,
+      scene._activeTargetPoint,
+      { durationMs: 1200 },
+    );
+    expect(scene._targetRevealEffect.pin).toHaveBeenCalled();
+    expect(scene._audioManager.playFoundSound).not.toHaveBeenCalled();
+    expect(overlay.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: 'Typ de naam van dit land:',
+        check: expect.any(Function),
+        onAccepted: expect.any(Function),
+      }),
+    );
+
+    const [{ check }] = overlay.show.mock.calls[0];
+    expect(check('finland')).toBe(true);
+    expect(check('Zweden')).toBe(false);
+  });
+});
+
+describe('HelicopterScene._handleSpellingAccepted', () => {
+  it('plays the success cue, clears spelling state, and advances the quiz', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._spellingAutoFlyActive = true;
+    scene._spellingWaitingForInput = true;
+    scene._answerRevealActive = true;
+    scene._targetRevealEffect = { unpin: vi.fn(), clear: vi.fn() };
+    scene._typingOverlay = { hide: vi.fn() };
+    scene._quizController = { advance: vi.fn() };
+    scene._audioManager = { playFoundSound: vi.fn() };
+
+    scene._handleSpellingAccepted();
+
+    expect(scene._spellingAutoFlyActive).toBe(false);
+    expect(scene._spellingWaitingForInput).toBe(false);
+    expect(scene._answerRevealActive).toBe(false);
+    expect(scene._audioManager.playFoundSound).toHaveBeenCalled();
+    expect(scene._targetRevealEffect.unpin).toHaveBeenCalled();
+    expect(scene._targetRevealEffect.clear).toHaveBeenCalled();
+    expect(scene._typingOverlay.hide).toHaveBeenCalled();
+    expect(scene._quizController.advance).toHaveBeenCalled();
+  });
+});
+
+describe('HelicopterScene._onQuizTargetChange (spelling mode)', () => {
+  const makeScene = () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._pendingAdvanceEvent = { remove: vi.fn() };
+    scene._answerRevealActive = false;
+    scene._spellingAutoFlyActive = false;
+    scene._spellingWaitingForInput = false;
+    scene._activeTarget = null;
+    scene._activeTargetPoint = null;
+    scene._activeTargetReveal = null;
+    scene._activeTargetGeometry = null;
+    scene._typingOverlay = { hide: vi.fn() };
+    scene._targetRevealEffect = { clear: vi.fn() };
+    scene._targetVisualizer = { showTarget: vi.fn(), hideTarget: vi.fn() };
+    scene._hoverDetector = { reset: vi.fn() };
+    scene._searchTimer = { start: vi.fn() };
+    scene._searchTimerDuration = 5000;
+    scene._quizController = { level: { name: 'Test Level' } };
+    scene._quizHUD = { showTarget: vi.fn(), showSpellingTarget: vi.fn() };
+    scene.helicopter = { setTarget: vi.fn() };
+    scene.projectLatLon = vi.fn(() => ({ x: 300, y: 400 }));
+    scene.getPreciseArrivalThreshold = vi.fn(() => 3);
+    scene.getTargetScreenRadius = vi.fn(() => 50);
+    scene._getDatasets = vi.fn(() => ({}));
+    scene._activeTargetReveal = null;
+    scene._activeTargetGeometry = null;
+    scene.getDebugSceneSnapshot = vi.fn(() => ({}));
+    return scene;
+  };
+
+  it('auto-flies and blocks input for spelling questions', () => {
+    const scene = makeScene();
+    const previousAdvanceEvent = scene._pendingAdvanceEvent;
+
+    const spellingTarget = {
+      id: 'city-helsinki',
+      name: 'Helsinki',
+      lat: 60.17,
+      lon: 24.94,
+      category: 'cities',
+      questionMode: 'spelling',
+    };
+    scene._onQuizTargetChange(spellingTarget, { score: 0, total: 5, current: 0 });
+
+    expect(previousAdvanceEvent.remove).toHaveBeenCalledWith(false);
+    expect(scene._pendingAdvanceEvent).toBeNull();
+    expect(scene._answerRevealActive).toBe(true);
+    expect(scene._spellingAutoFlyActive).toBe(true);
+    expect(scene.helicopter.setTarget).toHaveBeenCalledWith(300, 400, {
+      stopThreshold: 3,
+      snapOnArrival: true,
+    });
+    expect(scene._activeTargetReveal).toEqual(expect.objectContaining({ kind: 'circle' }));
+    expect(scene._activeTargetGeometry).toEqual(expect.objectContaining({
+      kind: 'circle',
+      centerX: 300,
+      centerY: 400,
+    }));
+    expect(scene._targetVisualizer.hideTarget).toHaveBeenCalled();
+    expect(scene._targetVisualizer.showTarget).not.toHaveBeenCalled();
+    expect(scene._searchTimer.start).not.toHaveBeenCalled();
+    expect(scene._quizHUD.showSpellingTarget).toHaveBeenCalledWith(
+      'cities',
+      'Test Level',
+      { score: 0, total: 5, current: 0 },
+    );
+  });
+
+  it('uses locate flow for normal locate questions', () => {
+    const scene = makeScene();
+
+    const locateTarget = {
+      id: 'amsterdam',
+      name: 'Amsterdam',
+      lat: 52,
+      lon: 4.9,
+      category: 'cities',
+      questionMode: 'locate',
+    };
+    scene._onQuizTargetChange(locateTarget, { score: 0, total: 5, current: 0 });
+
+    expect(scene._answerRevealActive).toBe(false);
+    expect(scene._spellingAutoFlyActive).toBe(false);
+    expect(scene._targetVisualizer.showTarget).toHaveBeenCalled();
+    expect(scene._searchTimer.start).toHaveBeenCalledWith(5000);
+    expect(scene._quizHUD.showTarget).toHaveBeenCalledWith(
+      'Amsterdam',
+      'Test Level',
+      { score: 0, total: 5, current: 0 },
+    );
+  });
+});
+
+describe('HelicopterScene._updateQuiz (spelling mode)', () => {
+  it('does not tick the search timer while waiting for a typed answer', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._targetRevealEffect = { update: vi.fn() };
+    scene._answerRevealActive = true;
+    scene._spellingAutoFlyActive = false;
+    scene._checkSpellingArrival = vi.fn();
+    scene._searchTimer = {
+      isRunning: true,
+      update: vi.fn(),
+      getRemaining: vi.fn(() => 4000),
+    };
+    scene._quizHUD = { showTimer: vi.fn() };
+
+    scene._updateQuiz(16);
+
+    expect(scene._checkSpellingArrival).not.toHaveBeenCalled();
+    expect(scene._searchTimer.update).not.toHaveBeenCalled();
+    expect(scene._quizHUD.showTimer).not.toHaveBeenCalled();
+  });
+});
+
+describe('HelicopterScene._buildSpellingPrompt', () => {
+  it('generates a Dutch prompt using the category label', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    expect(scene._buildSpellingPrompt({ category: 'countries', name: 'Finland' }))
+      .toBe('Typ de naam van dit land:');
+  });
+
+  it('uses Dutch nouns for water and areas', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    expect(scene._buildSpellingPrompt({ category: 'water', name: 'Noordzee' }))
+      .toBe('Typ de naam van dit water:');
+    expect(scene._buildSpellingPrompt({ category: 'areas', name: 'De Biesbosch' }))
+      .toBe('Typ de naam van dit gebied:');
+  });
+
+  it('uses the raw category when there is no Dutch mapping', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    expect(scene._buildSpellingPrompt({ category: 'provinces', name: 'X' }))
+      .toBe('Typ de naam van dit provinces:');
+  });
+
+  it('falls back to "gebied" when category is empty', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    expect(scene._buildSpellingPrompt({ category: '', name: 'X' }))
+      .toBe('Typ de naam van dit gebied:');
+  });
+});

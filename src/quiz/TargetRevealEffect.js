@@ -20,6 +20,7 @@ export default class TargetRevealEffect {
     this._screenRadiusPx = QUIZ_TARGET_STYLE.REVEAL_AREA_RADIUS;
     this._kind = 'circle';
     this._renderer = null;
+    this._pinned = false;
   }
 
   playReveal(reveal, point, options = {}) {
@@ -53,13 +54,31 @@ export default class TargetRevealEffect {
     return this;
   }
 
+  /**
+   * Pin the effect so it stays visible indefinitely (until `unpin()` or `clear()`).
+   * The elapsed counter is locked to the midpoint of the animation so the
+   * envelope stays at peak brightness; the pulse sub-animation continues.
+   */
+  pin() {
+    this._pinned = true;
+    this._elapsed = this._durationMs * 0.5;
+    return this;
+  }
+
+  /** Release a pinned effect so it resumes its normal timed decay. */
+  unpin() {
+    this._pinned = false;
+    return this;
+  }
+
   update(delta) {
     if (!this._active) {
       return false;
     }
 
     this._elapsed += Math.max(Number(delta) || 0, 0);
-    if (this._elapsed >= this._durationMs) {
+
+    if (!this._pinned && this._elapsed >= this._durationMs) {
       this.clear();
       return false;
     }
@@ -70,6 +89,7 @@ export default class TargetRevealEffect {
 
   clear() {
     this._active = false;
+    this._pinned = false;
     this._renderer = null;
     this._graphics?.clear();
     return this;
@@ -90,7 +110,10 @@ export default class TargetRevealEffect {
     g.clear();
 
     const zoom = Math.max(this._scene?.cameras?.main?.zoom ?? 1, 0.0001);
-    const progress = Math.min(this._elapsed / this._durationMs, 1);
+    // When pinned, lock progress at the envelope's peak (sin(0.5π) = 1).
+    const progress = this._pinned
+      ? 0.5
+      : Math.min(this._elapsed / this._durationMs, 1);
     const envelope = Math.sin(progress * Math.PI);
     const pulse = 0.86 + 0.14 * Math.sin((this._elapsed / 180) * Math.PI * 2);
     const fillAlpha = 0.08 + 0.22 * envelope * pulse;

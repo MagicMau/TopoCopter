@@ -1,3 +1,4 @@
+import { getDutchCategoryLabel } from '../quiz/categoryLabels.js';
 import { OVERLAY_STYLE, PALETTE, WORLD_DEPTHS } from './styles.js';
 import { getSafeAreaInsets } from '../core/safeArea.js';
 
@@ -66,6 +67,33 @@ export default class QuizHUD {
     this._progBar   .setVisible(true);
 
     this._drawBar(0);
+    this._layout();
+  }
+
+  /**
+   * Show the HUD in spelling-question mode.
+   *
+   * The target name is intentionally hidden; a Dutch category label is shown
+   * instead so the player knows what type of thing they are naming.
+   *
+   * @param {string} category  Raw category key (e.g. 'countries', 'cities').
+   * @param {string} levelName
+   * @param {{ current: number, total: number, score: number }} progress
+   */
+  showSpellingTarget(category, levelName, progress) {
+    const { score, total } = progress;
+    const label = getDutchCategoryLabel(category, '?');
+
+    this._levelText .setText(levelName ?? '').setVisible(Boolean(levelName));
+    this._labelText .setText('Typ de naam:').setVisible(true);
+    this._targetText.setText(label || '?').setVisible(true);
+    this._scoreText .setText(`${score} / ${total}`).setVisible(true);
+
+    // No timer or hover bar during spelling
+    this._timerText?.setVisible(false);
+    this._progBg   ?.setVisible(false);
+    this._progBar  ?.setVisible(false);
+
     this._layout();
   }
 
