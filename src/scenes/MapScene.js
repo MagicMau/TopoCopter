@@ -47,7 +47,7 @@ export default class MapScene extends Phaser.Scene {
     this.detailLayerRenderers = [];
     this.hydroFillLayerRenderers = [];
     this.hydroLineLayerRenderers = [];
-    this.bottomUnavailableGraphics = null;
+    this.unavailableRegionGraphics = null;
   }
 
   create() {
@@ -65,7 +65,7 @@ export default class MapScene extends Phaser.Scene {
     this.detailLayerRenderers = [];
     this.hydroFillLayerRenderers = [];
     this.hydroLineLayerRenderers = [];
-    this.bottomUnavailableGraphics = null;
+    this.unavailableRegionGraphics = null;
     this.projection = new Projection().init(
       WORLD_LAYOUT.WIDTH,
       WORLD_LAYOUT.HEIGHT,
@@ -356,7 +356,7 @@ export default class MapScene extends Phaser.Scene {
       this.detailMapGraphics.setVisible(this.detailLayerRenderers.length > 0);
     }
 
-    this.createBottomUnavailableOverlay();
+    this.createUnavailableRegionOverlay();
   }
 
   getPreparedLayerData(layer) {
@@ -506,6 +506,29 @@ export default class MapScene extends Phaser.Scene {
     return isFullWorld ? null : bounds;
   }
 
+  getTopUnavailableOverlayBounds() {
+    const clipBounds = this.getGeoClipBounds();
+
+    if (!clipBounds) {
+      return null;
+    }
+
+    const projection = this.projection;
+    const worldWidth = Number.isFinite(projection?.width) ? projection.width : WORLD_LAYOUT.WIDTH;
+    const offsetY = Number.isFinite(projection?.offsetY) ? projection.offsetY : null;
+
+    if (!Number.isFinite(offsetY) || offsetY <= 0) {
+      return null;
+    }
+
+    return {
+      x: 0,
+      y: 0,
+      width: worldWidth,
+      height: offsetY,
+    };
+  }
+
   getBottomUnavailableOverlayBounds() {
     const clipBounds = this.getGeoClipBounds();
 
@@ -532,31 +555,34 @@ export default class MapScene extends Phaser.Scene {
     };
   }
 
-  createBottomUnavailableOverlay() {
-    const overlayBounds = this.getBottomUnavailableOverlayBounds();
+  createUnavailableRegionOverlay() {
+    const topBounds = this.getTopUnavailableOverlayBounds();
+    const bottomBounds = this.getBottomUnavailableOverlayBounds();
     const canDraw = this.add && typeof this.add.graphics === 'function';
 
-    if (!overlayBounds || !canDraw) {
-      this.bottomUnavailableGraphics?.clear?.();
-      this.bottomUnavailableGraphics?.setVisible?.(false);
+    if ((!topBounds && !bottomBounds) || !canDraw) {
+      this.unavailableRegionGraphics?.clear?.();
+      this.unavailableRegionGraphics?.setVisible?.(false);
       return;
     }
 
-    if (!this.bottomUnavailableGraphics) {
-      this.bottomUnavailableGraphics = this.registerWorldObject(
+    if (!this.unavailableRegionGraphics) {
+      this.unavailableRegionGraphics = this.registerWorldObject(
         this.add.graphics().setDepth(WORLD_DEPTHS.QUIZ_TARGET + 0.5),
       );
     }
 
-    this.bottomUnavailableGraphics.clear();
-    this.bottomUnavailableGraphics.setVisible(true);
-    this.bottomUnavailableGraphics.fillStyle(PALETTE.borderStrong, MAP_STYLE.UNAVAILABLE_REGION_ALPHA);
-    this.bottomUnavailableGraphics.fillRect(
-      overlayBounds.x,
-      overlayBounds.y,
-      overlayBounds.width,
-      overlayBounds.height,
-    );
+    this.unavailableRegionGraphics.clear();
+    this.unavailableRegionGraphics.setVisible(true);
+    this.unavailableRegionGraphics.fillStyle(PALETTE.borderStrong, MAP_STYLE.UNAVAILABLE_REGION_ALPHA);
+
+    if (topBounds) {
+      this.unavailableRegionGraphics.fillRect(topBounds.x, topBounds.y, topBounds.width, topBounds.height);
+    }
+
+    if (bottomBounds) {
+      this.unavailableRegionGraphics.fillRect(bottomBounds.x, bottomBounds.y, bottomBounds.width, bottomBounds.height);
+    }
   }
 
   isLatLonWithinProjectionBounds(lat, lon) {
@@ -1032,7 +1058,7 @@ export default class MapScene extends Phaser.Scene {
     this.hydroLineGraphics = null;
     this.mapBorderGraphics = null;
     this.detailMapGraphics = null;
-    this.bottomUnavailableGraphics = null;
+    this.unavailableRegionGraphics = null;
     this.mapRenderer = null;
     this.mapBorderRenderer = null;
     this.detailLayerRenderers = [];
