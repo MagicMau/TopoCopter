@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import QuizController from '../quiz/QuizController.js';
+import { PLAY_MODE, QUESTION_MODE } from '../quiz/questionModes.js';
 
 const TARGETS = {
   countries: [
@@ -338,6 +339,72 @@ describe('QuizController', () => {
     it('is chainable', () => {
       const qc = new QuizController(TARGETS, LEVELS);
       expect(qc.reset()).toBe(qc);
+    });
+  });
+
+  describe('playMode / question mode decoration', () => {
+    it('adds questionMode=locate to all items by default (no playMode)', () => {
+      const qc = new QuizController(TARGETS, LEVELS);
+      qc.start('level-1');
+      for (const item of qc._sequence) {
+        expect(item.questionMode).toBe(QUESTION_MODE.LOCATE);
+      }
+    });
+
+    it('adds questionMode=locate when playMode is LOCATE', () => {
+      const qc = new QuizController(TARGETS, LEVELS, { playMode: PLAY_MODE.LOCATE });
+      qc.start('level-1');
+      for (const item of qc._sequence) {
+        expect(item.questionMode).toBe(QUESTION_MODE.LOCATE);
+      }
+    });
+
+    it('adds questionMode=spelling to all items when playMode is SPELLING', () => {
+      const qc = new QuizController(TARGETS, LEVELS, { playMode: PLAY_MODE.SPELLING });
+      qc.start('level-1');
+      for (const item of qc._sequence) {
+        expect(item.questionMode).toBe(QUESTION_MODE.SPELLING);
+      }
+    });
+
+    it('alternates locate/spelling starting with locate for MIXED mode', () => {
+      const qc = new QuizController(TARGETS, LEVELS, { playMode: PLAY_MODE.MIXED });
+      qc.start('level-2'); // targetCount=4, gives us 4 items
+      expect(qc._sequence[0].questionMode).toBe(QUESTION_MODE.LOCATE);
+      expect(qc._sequence[1].questionMode).toBe(QUESTION_MODE.SPELLING);
+      expect(qc._sequence[2].questionMode).toBe(QUESTION_MODE.LOCATE);
+      expect(qc._sequence[3].questionMode).toBe(QUESTION_MODE.SPELLING);
+    });
+
+    it('getCurrentTarget returns the questionMode on the current item', () => {
+      const qc = new QuizController(TARGETS, LEVELS, { playMode: PLAY_MODE.SPELLING });
+      qc.start('level-1');
+      expect(qc.getCurrentTarget().questionMode).toBe(QUESTION_MODE.SPELLING);
+    });
+
+    it('onTargetChange receives decorated target with questionMode', () => {
+      const onChange = vi.fn();
+      const qc = new QuizController(TARGETS, LEVELS, {
+        playMode: PLAY_MODE.SPELLING,
+        onTargetChange: onChange,
+      });
+      qc.start('level-1');
+      const [target] = onChange.mock.calls[0];
+      expect(target.questionMode).toBe(QUESTION_MODE.SPELLING);
+    });
+
+    it('does not mutate original target data when decorating', () => {
+      const qc = new QuizController(TARGETS, LEVELS, { playMode: PLAY_MODE.SPELLING });
+      qc.start('level-1');
+      expect(TARGETS.countries[0]).not.toHaveProperty('questionMode');
+    });
+
+    it('re-decorates on restart with the same playMode', () => {
+      const qc = new QuizController(TARGETS, LEVELS, { playMode: PLAY_MODE.SPELLING });
+      qc.start('level-1');
+      qc.advance();
+      qc.start('level-1'); // restart
+      expect(qc._sequence[0].questionMode).toBe(QUESTION_MODE.SPELLING);
     });
   });
 });

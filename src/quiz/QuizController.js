@@ -9,10 +9,15 @@
  *     onTargetChange: (target, progress) => …,
  *     onScoreUpdate:  (progress)         => …,
  *     onComplete:     (progress)         => …,
+ *     playMode:       PLAY_MODE.MIXED,   // optional; defaults to LOCATE
  *   });
  *   qc.start('level-1');
  *   qc.advance();   // call when current target is found
  */
+import { decorateSequence, PLAY_MODE } from './questionModes.js';
+
+export { PLAY_MODE };
+
 export default class QuizController {
   constructor(targetsData, levelsData, options = {}) {
     this._targets    = targetsData ?? {};
@@ -21,6 +26,7 @@ export default class QuizController {
     this._onTargetChange = options.onTargetChange ?? null;
     this._onScoreUpdate  = options.onScoreUpdate  ?? null;
     this._onComplete     = options.onComplete     ?? null;
+    this._playMode       = options.playMode       ?? null;
 
     this.level         = null;
     this._sequence     = [];
@@ -100,8 +106,9 @@ export default class QuizController {
     const pool     = this.buildPool(this.level);
     const shuffled = this.shuffle(pool);
     const count    = this.level?.targetCount ?? shuffled.length;
+    const sliced   = shuffled.slice(0, count);
 
-    this._sequence     = shuffled.slice(0, count);
+    this._sequence     = decorateSequence(sliced, this._playMode);
     this._currentIndex = 0;
     this._score        = 0;
     this._started      = true;
