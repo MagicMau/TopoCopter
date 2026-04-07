@@ -307,31 +307,63 @@ describe('AudioManager.unlock', () => {
   it('resumes a suspended context and starts a pending rotor loop', async () => {
     const am  = new AudioManager();
     const ctx = makeMockContext('suspended');
+    ctx.resume = vi.fn(() => {
+      ctx.state = 'running';
+      return Promise.resolve();
+    });
+
+    am._ctx = ctx;
+    am._rotorRequested = true;
+
+    await expect(am.unlock()).resolves.toBe(true);
+
+    expect(ctx.resume).toHaveBeenCalledOnce();
+    expect(ctx.createBufferSource).toHaveBeenCalledOnce();
+    expect(am.isReady()).toBe(true);
+  });
+
+  it('coalesces repeated unlock calls while a resume is pending', async () => {
+    const am  = new AudioManager();
+    const ctx = makeMockContext('suspended');
 
     let resolveResume;
     ctx.resume = vi.fn(
       () =>
         new Promise((res) => {
-          resolveResume = res;
+          resolveResume = () => {
+            ctx.state = 'running';
+            res();
+          };
         }),
     );
 
-    // Inject suspended context
-    vi.stubGlobal('window', { AudioContext: function () { return ctx; } });
-    am._rotorRequested = true;
+    am._ctx = ctx;
 
-    const unlockPromise = (async () => {
-      am.unlock();
-      // Before resume resolves, nothing should be created yet
-      expect(ctx.createBufferSource).not.toHaveBeenCalled();
+    const firstUnlock = am.unlock();
+    const secondUnlock = am.unlock();
 
-      // Resolve resume and switch to running
+    expect(ctx.resume).toHaveBeenCalledTimes(1);
+    expect(secondUnlock).toBe(firstUnlock);
+
+    resolveResume();
+
+    await expect(firstUnlock).resolves.toBe(true);
+    await expect(secondUnlock).resolves.toBe(true);
+  });
+
+  it('resumes interrupted contexts too', async () => {
+    const am  = new AudioManager();
+    const ctx = makeMockContext('interrupted');
+    ctx.resume = vi.fn(() => {
       ctx.state = 'running';
-      resolveResume();
-      await Promise.resolve();
-    })();
+      return Promise.resolve();
+    });
 
-    await unlockPromise;
-    vi.unstubAllGlobals();
+    am._ctx = ctx;
+
+    await expect(am.unlock()).resolves.toBe(true);
+
+    expect(ctx.resume).toHaveBeenCalledOnce();
+    expect(am.isReady()).toBe(true);
   });
 });

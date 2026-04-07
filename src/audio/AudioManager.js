@@ -20,6 +20,7 @@ export class AudioManager {
     this._rotorNodes      = null; // { source, filter, masterGain }
     this._rotorRequested  = false;
     this._warnedUnsupported = false;
+    this._unlockPromise   = null;
   }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
@@ -97,10 +98,12 @@ export class AudioManager {
   /**
    * Create / resume the AudioContext.
    * MUST be called from a user-gesture handler to satisfy iOS Safari autoplay policy.
+   *
+   * @returns {Promise<boolean>} True once the context is running, false on failure.
    */
   unlock() {
     const ctx = this._ensureContext();
-    if (!ctx) return;
+    if (!ctx) return Promise.resolve(false);
 
     const startPendingRotor = () => {
       if (this._rotorRequested) {
@@ -108,18 +111,41 @@ export class AudioManager {
       }
     };
 
-    if (ctx.state === 'suspended') {
-      ctx.resume()
-        .then(startPendingRotor)
-        .catch((error) => {
-          if (typeof console !== 'undefined') {
-            console.warn('Unable to resume audio context.', error);
-          }
-        });
-      return;
+    if (ctx.state === 'running') {
+      startPendingRotor();
+      return Promise.resolve(true);
     }
 
-    startPendingRotor();
+    if (this._unlockPromise) {
+      return this._unlockPromise;
+    }
+
+    let resumePromise;
+    try {
+      resumePromise = Promise.resolve(ctx.resume());
+    } catch (error) {
+      if (typeof console !== 'undefined') {
+        console.warn('Unable to resume audio context.', error);
+      }
+      return Promise.resolve(false);
+    }
+
+    this._unlockPromise = resumePromise
+      .then(() => {
+        startPendingRotor();
+        return true;
+      })
+      .catch((error) => {
+        if (typeof console !== 'undefined') {
+          console.warn('Unable to resume audio context.', error);
+        }
+        return false;
+      })
+      .finally(() => {
+        this._unlockPromise = null;
+      });
+
+    return this._unlockPromise;
   }
 
   /** True when the AudioContext is live and able to produce sound. */

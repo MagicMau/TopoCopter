@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import gameConfig from './core/GameConfig.js';
+import { installBootstrapAudioUnlock } from './audio/bootstrapAudioUnlock.js';
 
 const GAME_INSTANCE_KEY = '__TOPOCOPTER_GAME__';
 const GAME_CLEANUP_KEY = '__TOPOCOPTER_GAME_CLEANUP__';
 const VIEWPORT_WIDTH_VAR = '--app-viewport-width';
 const VIEWPORT_HEIGHT_VAR = '--app-viewport-height';
+const cleanupBootstrapAudioUnlock = installBootstrapAudioUnlock();
 
 const readViewportSize = () => ({
   width: Math.max(
@@ -77,7 +79,11 @@ const startGame = () => {
   syncViewport(game);
 
   window[GAME_INSTANCE_KEY] = game;
-  window[GAME_CLEANUP_KEY] = bindViewportEvents(game);
+  const cleanupViewport = bindViewportEvents(game);
+  window[GAME_CLEANUP_KEY] = () => {
+    cleanupViewport?.();
+    cleanupBootstrapAudioUnlock?.();
+  };
 
   return game;
 };
