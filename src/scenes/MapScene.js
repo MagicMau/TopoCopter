@@ -3,6 +3,17 @@ import Projection from '../core/Projection.js';
 import MapLoader from '../core/MapLoader.js';
 import MapRenderer from '../core/MapRenderer.js';
 import InputController from '../core/InputController.js';
+import {
+  debugLog,
+  describeCameraView,
+  describeProjection,
+  getCanvasMetrics,
+  getWindowMetrics,
+} from '../core/runtimeDebug.js';
+import {
+  getCameraScrollForWorldCenter,
+  setCameraScroll,
+} from '../core/cameraMath.js';
 import { DETAIL_LAYER_DEFINITIONS } from '../data/detailLayers.js';
 import { DATA_CACHE_KEYS, PHYSICAL_LAYER_DEFINITIONS } from './PreloadScene.js';
 import {
@@ -84,10 +95,12 @@ export default class MapScene extends Phaser.Scene {
 
     this.baseMapMinZoom = minZoom;
     camera.setZoom(minZoom);
-    // Use the correct scroll formula: scrollX = worldX - viewHalfWidth/zoom (world at screen left)
-    // camera.centerOn() ignores zoom and gives wrong scroll at zoom != 1.
-    camera.scrollX = initialFocus.x - camera.width * 0.5 / minZoom;
-    camera.scrollY = initialFocus.y - camera.height * 0.5 / minZoom;
+    const initialScroll = getCameraScrollForWorldCenter(
+      camera,
+      initialFocus.x,
+      initialFocus.y,
+    );
+    setCameraScroll(camera, initialScroll.x, initialScroll.y);
     this.lastCameraZoom = camera.zoom;
 
     this.inputController = new InputController(
@@ -100,6 +113,14 @@ export default class MapScene extends Phaser.Scene {
         maxZoom,
       }),
     );
+
+    debugLog('CAMERA-INIT', 'Initialized base map scene camera state', this.getDebugSceneSnapshot({
+      minZoom,
+      maxZoom,
+      sceneFocus,
+      initialFocus,
+      markerCount: this.markers.length,
+    }));
 
     this.createSceneSystems();
     this.syncZoomResponsiveElements();
@@ -128,6 +149,21 @@ export default class MapScene extends Phaser.Scene {
     return {
       x: WORLD_LAYOUT.WIDTH * 0.5,
       y: WORLD_LAYOUT.HEIGHT * 0.5,
+    };
+  }
+
+  getDebugSceneSnapshot(extra = {}) {
+    return {
+      scene: this.sys?.settings?.key ?? this.constructor.name,
+      window: getWindowMetrics(),
+      canvas: getCanvasMetrics(this.game),
+      scale: {
+        width: this.scale?.width ?? null,
+        height: this.scale?.height ?? null,
+      },
+      projection: describeProjection(this.projection),
+      camera: describeCameraView(this.cameras?.main, this.projection),
+      ...extra,
     };
   }
 
@@ -814,6 +850,7 @@ export default class MapScene extends Phaser.Scene {
 
   handleResize(gameSize) {
     const camera = this.cameras.main;
+    const beforeCamera = describeCameraView(camera, this.projection);
 
     camera.setViewport(0, 0, gameSize.width, gameSize.height);
     camera.setSize(gameSize.width, gameSize.height);
@@ -828,6 +865,16 @@ export default class MapScene extends Phaser.Scene {
     this.lastCameraZoom = camera.zoom;
     this.syncZoomResponsiveElements();
     this.layoutOverlay();
+
+    debugLog('CAMERA-RESIZE', 'Handled base map resize', this.getDebugSceneSnapshot({
+      gameSize: {
+        width: gameSize.width,
+        height: gameSize.height,
+      },
+      minZoom,
+      maxZoom,
+      beforeCamera,
+    }));
   }
 
   handleShutdown() {

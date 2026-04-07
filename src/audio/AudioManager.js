@@ -16,22 +16,29 @@ class AudioManager {
   constructor() {
     this._ctx        = null;
     this._rotorNodes = null; // { osc, gain, harmOsc, harmGain }
+    this._rotorRequested = false;
+    this._warnedUnsupported = false;
   }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
 
   _ensureContext() {
     if (this._ctx && this._ctx.state !== 'closed') return this._ctx;
-    try {
-      const Ctor =
-        typeof window !== 'undefined'
-          ? (window.AudioContext ?? window.webkitAudioContext)
-          : null;
-      if (!Ctor) return null;
-      this._ctx = new Ctor();
-    } catch {
+
+    const Ctor =
+      typeof window !== 'undefined'
+        ? (window.AudioContext ?? window.webkitAudioContext)
+        : null;
+
+    if (!Ctor) {
+      if (!this._warnedUnsupported && typeof console !== 'undefined') {
+        console.warn('Web Audio API is unavailable; audio is disabled.');
+        this._warnedUnsupported = true;
+      }
       return null;
     }
+
+    this._ctx = new Ctor();
     return this._ctx;
   }
 
@@ -44,7 +51,25 @@ class AudioManager {
   unlock() {
     const ctx = this._ensureContext();
     if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+    const startPendingRotor = () => {
+      if (this._rotorRequested) {
+        this.startRotorLoop();
+      }
+    };
+
+    if (ctx.state === 'suspended') {
+      ctx.resume()
+        .then(startPendingRotor)
+        .catch((error) => {
+          if (typeof console !== 'undefined') {
+            console.warn('Unable to resume audio context.', error);
+          }
+        });
+      return;
+    }
+
+    startPendingRotor();
   }
 
   /** True when the AudioContext is live and able to produce sound. */
@@ -60,9 +85,10 @@ class AudioManager {
    * and will start playing automatically once unlock() is called.
    */
   startRotorLoop() {
+    this._rotorRequested = true;
     if (this._rotorNodes) return;
     const ctx = this._ensureContext();
-    if (!ctx) return;
+    if (!ctx || ctx.state !== 'running') return;
 
     const gain = ctx.createGain();
     gain.gain.value = 0.08;
@@ -100,18 +126,28 @@ class AudioManager {
     if (!ctx || !this._rotorNodes) return;
     const now = ctx.currentTime;
     const TAU = 0.25; // time constant in seconds (~63% reached in 0.25 s)
-    this._rotorNodes.osc.frequency.setTargetAtTime(freq, now, TAU);
-    this._rotorNodes.gain.gain.setTargetAtTime(gain, now, TAU);
-    this._rotorNodes.harmOsc.frequency.setTargetAtTime(freq * 2, now, TAU);
-    this._rotorNodes.harmGain.gain.setTargetAtTime(gain * 0.5, now, TAU);
+    const scheduleTarget = (param, value) => {
+      if (typeof param.cancelAndHoldAtTime === 'function') {
+        param.cancelAndHoldAtTime(now);
+      } else {
+        param.cancelScheduledValues(now);
+      }
+      param.setTargetAtTime(value, now, TAU);
+    };
+
+    scheduleTarget(this._rotorNodes.osc.frequency, freq);
+    scheduleTarget(this._rotorNodes.gain.gain, gain);
+    scheduleTarget(this._rotorNodes.harmOsc.frequency, freq * 2);
+    scheduleTarget(this._rotorNodes.harmGain.gain, gain * 0.5);
   }
 
   /** Disconnect and discard all rotor nodes. */
   stopRotorLoop() {
+    this._rotorRequested = false;
     if (!this._rotorNodes) return;
     const { osc, gain, harmOsc, harmGain } = this._rotorNodes;
-    try { osc.stop();     } catch { /* already stopped */ }
-    try { harmOsc.stop(); } catch { /* already stopped */ }
+    osc.stop();
+    harmOsc.stop();
     osc.disconnect();
     gain.disconnect();
     harmOsc.disconnect();
@@ -167,6 +203,10 @@ class AudioManager {
       osc.type = 'sine';
       osc.frequency.value = freq;
       osc.connect(gainNode);
+      osc.onended = () => {
+        osc.disconnect();
+        gainNode.disconnect();
+      };
       osc.start(now + startDelay);
       osc.stop(now + startDelay + duration + 0.02);
     }

@@ -1,9 +1,5 @@
-import { PALETTE, WORLD_DEPTHS } from '../ui/styles.js';
+import { PALETTE, QUIZ_TARGET_STYLE, WORLD_DEPTHS } from '../ui/styles.js';
 
-/** Stroke width for the target ring (world pixels). */
-const RING_STROKE    = 2.5;
-/** Stroke width for the hover-progress arc (world pixels). */
-const PROGRESS_STROKE = 5.5;
 /** Period (ms) for the pulsing alpha animation. */
 const PULSE_PERIOD   = 1400;
 
@@ -11,8 +7,8 @@ const PULSE_PERIOD   = 1400;
  * World-space Phaser graphics that visually marks the active quiz target.
  *
  * Draws a pulsing ring at the target position and overlays a progress arc
- * that fills as the helicopter hovers.  Everything is in world coordinates so
- * it scales naturally with camera zoom.
+ * that fills as the helicopter hovers. The marker keeps a stable on-screen
+ * size so the target does not become easier just because the user zoomed in.
  *
  * The graphics object is registered via `scene.registerWorldObject()`, so the
  * UI camera automatically ignores it.
@@ -27,7 +23,7 @@ export default class TargetVisualizer {
 
     this._targetX       = 0;
     this._targetY       = 0;
-    this._radius        = 60;
+    this._screenRadius  = QUIZ_TARGET_STYLE.SCREEN_RADIUS;
     this._hoverProgress = 0;
     this._elapsed       = 0;
     this._visible       = false;
@@ -39,7 +35,7 @@ export default class TargetVisualizer {
   showTarget(worldX, worldY, radius) {
     this._targetX       = worldX;
     this._targetY       = worldY;
-    this._radius        = Math.max(1, radius);
+    this._screenRadius  = Math.max(1, radius);
     this._visible       = true;
     this._hovering      = false;
     this._hoverProgress = 0;
@@ -84,7 +80,11 @@ export default class TargetVisualizer {
     // Only render when the helicopter is inside the target zone
     if (!this._hovering) return;
 
-    const { _targetX: x, _targetY: y, _radius: r } = this;
+    const zoom = Math.max(this._scene?.cameras?.main?.zoom ?? 1, 0.0001);
+    const r = this._screenRadius / zoom;
+    const ringStroke = QUIZ_TARGET_STYLE.RING_STROKE / zoom;
+    const progressStroke = QUIZ_TARGET_STYLE.PROGRESS_STROKE / zoom;
+    const { _targetX: x, _targetY: y } = this;
 
     // Pulse factor (0.6 → 1.0) driven by elapsed time
     const pulse     = 0.5 + 0.5 * Math.sin((this._elapsed / PULSE_PERIOD) * Math.PI * 2);
@@ -95,7 +95,7 @@ export default class TargetVisualizer {
     g.fillCircle(x, y, r);
 
     // Outer pulsing ring
-    g.lineStyle(RING_STROKE, PALETTE.marker, ringAlpha);
+    g.lineStyle(ringStroke, PALETTE.marker, ringAlpha);
     g.strokeCircle(x, y, r);
 
     // Hover progress arc (white, clockwise from top)
@@ -103,7 +103,7 @@ export default class TargetVisualizer {
       const start = -Math.PI / 2;
       const end   = start + Math.PI * 2 * this._hoverProgress;
 
-      g.lineStyle(PROGRESS_STROKE, 0xffffff, 0.88);
+      g.lineStyle(progressStroke, 0xffffff, 0.88);
       g.beginPath();
       g.arc(x, y, r, start, end, false);
       g.strokePath();

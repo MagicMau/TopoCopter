@@ -30,6 +30,7 @@ const makeCamera = (scrollX = 0, scrollY = 0, width = 1024, height = 768, zoom =
   get displayWidth() { return this.width / this.zoom; },
   get displayHeight() { return this.height / this.zoom; },
   setZoom(z) { this.zoom = z; },
+  setScroll(x, y) { this.scrollX = x; this.scrollY = y; },
 });
 
 const makeScene = (camera) => ({
@@ -77,7 +78,7 @@ describe('InputController.clampCamera', () => {
     });
 
     it('clamps to right boundary at zoom=1', () => {
-      // maxScrollX = 4096 - 1024 = 3072
+      // At zoom=1 the camera scroll aligns with the visible world left edge.
       const cam = makeCamera(9999, 0, 1024, 768, 1);
       const ic = makeInputController({ camera: cam });
       ic.clampCamera();
@@ -85,37 +86,32 @@ describe('InputController.clampCamera', () => {
     });
 
     it('clamps to correct right boundary at zoom=4', () => {
-      // viewWidth = 1024/4 = 256; maxScrollX = 4096 - 256 = 3840
+      // viewWidth = 1024/4 = 256; maxScrollX = 4096 - 512 - 128 = 3456
       const cam = makeCamera(9999, 0, 1024, 768, 4);
       const ic = makeInputController({ camera: cam });
       ic.clampCamera();
-      expect(cam.scrollX).toBeCloseTo(3840);
+      expect(cam.scrollX).toBeCloseTo(3456);
     });
 
     it('allows scroll up to right boundary at zoom=4', () => {
-      const cam = makeCamera(3840, 0, 1024, 768, 4);
+      const cam = makeCamera(3456, 0, 1024, 768, 4);
       const ic = makeInputController({ camera: cam });
       ic.clampCamera();
-      expect(cam.scrollX).toBeCloseTo(3840);
+      expect(cam.scrollX).toBeCloseTo(3456);
     });
 
     it('centers world when view is wider than world (zoom-out past fit)', () => {
-      // worldWidth=1024, viewWidth=1024/0.25=4096 > 1024 → center
-      // scrollX = (1024 - 4096) / 2 = -1536
+      // The visible rect is centred while the Phaser scroll stays at 0.
       const cam = makeCamera(0, 0, 1024, 768, 0.25);
       const ic = makeInputController({ camera: cam, worldWidth: 1024, worldHeight: 768 });
       ic.clampCamera();
-      expect(cam.scrollX).toBeCloseTo((1024 - 4096) * 0.5);
+      expect(cam.scrollX).toBeCloseTo(0);
     });
   });
 
   describe('getWorldPointFromCanvas formula', () => {
     it('returns world center at screen center when camera is centered on target', () => {
-      // scrollX = worldCenter - halfW/zoom (CameraController convention).
-      // At zoom=4, camera centred on world (2000, 1000):
-      //   scrollX = 2000 - 1024/(2*4) = 2000 - 128 = 1872
-      //   worldX at screenCentreX(512) = 1872 + 512/4 = 2000 ✓
-      const cam = makeCamera(1872, 904, 1024, 768, 4);
+      const cam = makeCamera(1488, 616, 1024, 768, 4);
       const scene = makeScene(cam);
       const ic = new InputController(scene, {
         camera: cam, worldWidth: 4096, worldHeight: 2048,
@@ -127,7 +123,7 @@ describe('InputController.clampCamera', () => {
     });
 
     it('returns correct world position for off-centre click at zoom=2', () => {
-      // scrollX=500, zoom=2, click at canvasX=0 → worldX = 500 + 0/2 = 500
+      // At zoom=2 the visible world top-left is shifted from the raw scroll.
       const cam = makeCamera(500, 300, 1024, 768, 2);
       const scene = makeScene(cam);
       const ic = new InputController(scene, {
@@ -135,8 +131,8 @@ describe('InputController.clampCamera', () => {
         minZoom: 0.25, maxZoom: 10,
       });
       const pt = ic.getWorldPointFromCanvas(0, 0, 2);
-      expect(pt.x).toBeCloseTo(500);
-      expect(pt.y).toBeCloseTo(300);
+      expect(pt.x).toBeCloseTo(756);
+      expect(pt.y).toBeCloseTo(492);
     });
   });
 

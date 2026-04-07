@@ -7,6 +7,8 @@ const makeCamera = (scrollX = 0, scrollY = 0, width = 800, height = 600, zoom = 
   width,
   height,
   zoom,
+  x: 0,
+  y: 0,
   get displayWidth() { return this.width / this.zoom; },
   get displayHeight() { return this.height / this.zoom; },
   setScroll(x, y) { this.scrollX = x; this.scrollY = y; },
@@ -55,24 +57,21 @@ describe('CameraController', () => {
     });
 
     it('adjusts scroll for zoom=2 (viewport shows smaller world area)', () => {
-      // zoom=2 → camWidth in world-units = 800/2 = 400
-      // idealScrollX = 400 - 800*0.5/2 = 400 - 200 = 200
-      // idealScrollY = 300 - 600*0.5/2 = 300 - 150 = 150
+      // Centring uses the camera midpoint, independent of zoom.
       const cam = makeCamera(0, 0, 800, 600, 2);
       const cc = new CameraController(cam, makeTarget(400, 300), { followLag: 0 });
       cc.update(16);
-      expect(cam.scrollX).toBeCloseTo(200);
-      expect(cam.scrollY).toBeCloseTo(150);
+      expect(cam.scrollX).toBeCloseTo(0);
+      expect(cam.scrollY).toBeCloseTo(0);
     });
 
     it('adjusts scroll for zoom=0.5 (viewport shows larger world area)', () => {
-      // idealScrollX = 400 - 800*0.5/0.5 = 400 - 800 = -400
-      // idealScrollY = 300 - 600*0.5/0.5 = 300 - 600 = -300
+      // Zoom changes the visible rect, not the centred scroll target.
       const cam = makeCamera(0, 0, 800, 600, 0.5);
       const cc = new CameraController(cam, makeTarget(400, 300), { followLag: 0 });
       cc.update(16);
-      expect(cam.scrollX).toBeCloseTo(-400);
-      expect(cam.scrollY).toBeCloseTo(-300);
+      expect(cam.scrollX).toBeCloseTo(0);
+      expect(cam.scrollY).toBeCloseTo(0);
     });
 
     it('moves camera when target changes', () => {
@@ -201,10 +200,7 @@ describe('CameraController', () => {
     });
 
     it('clamps scroll correctly at zoom=2 (world-unit bounds, not pixel bounds)', () => {
-      // At zoom=2 the visible world area is 800/2=400 wide (world units).
-      // World 2000×1500; target at world (1800, 1300).
-      // idealScrollX = 1800 - 800/(2*2) = 1800 - 200 = 1600; maxScrollX = 2000 - 400 = 1600
-      // idealScrollY = 1300 - 600/(2*2) = 1300 - 150 = 1150; maxScrollY = 1500 - 300 = 1200
+      // The visible world rect is clamped, which changes the allowable scroll range.
       const cam = makeCamera(0, 0, 800, 600, 2);
       const cc = new CameraController(cam, makeTarget(1800, 1300), {
         followLag: 0,
@@ -212,13 +208,12 @@ describe('CameraController', () => {
         worldHeight: 1500,
       });
       cc.update(16);
-      expect(cam.scrollX).toBeCloseTo(1600);
-      expect(cam.scrollY).toBeCloseTo(1150);
+      expect(cam.scrollX).toBeCloseTo(1400);
+      expect(cam.scrollY).toBeCloseTo(1000);
     });
 
     it('clamps to right boundary correctly at zoom=4', () => {
-      // At zoom=4 visible area is 200×150. World 2000×1500.
-      // maxScrollX = 2000 - 200 = 1800; maxScrollY = 1500 - 150 = 1350.
+      // At zoom=4 the visible world rect is 200×150 with a scroll offset from the camera midpoint.
       const cam = makeCamera(0, 0, 800, 600, 4);
       const cc = new CameraController(cam, makeTarget(10_000, 10_000), {
         followLag: 0,
@@ -226,13 +221,12 @@ describe('CameraController', () => {
         worldHeight: 1500,
       });
       cc.update(16);
-      expect(cam.scrollX).toBeCloseTo(1800);
-      expect(cam.scrollY).toBeCloseTo(1350);
+      expect(cam.scrollX).toBeCloseTo(1500);
+      expect(cam.scrollY).toBeCloseTo(1125);
     });
 
     it('centers world horizontally when view is wider than world', () => {
-      // worldWidth=800, viewWidth at zoom=0.25 = 800/0.25 = 3200 > 800
-      // scrollX = (800 - 3200) / 2 = -1200
+      // The visible rect is centred while the camera scroll stays at 0.
       const cam = makeCamera(0, 0, 800, 600, 0.25);
       const cc = new CameraController(cam, makeTarget(400, 300), {
         followLag: 0,
@@ -240,8 +234,8 @@ describe('CameraController', () => {
         worldHeight: 600,
       });
       cc.update(16);
-      expect(cam.scrollX).toBeCloseTo(-1200);
-      expect(cam.scrollY).toBeCloseTo(-900);
+      expect(cam.scrollX).toBeCloseTo(0);
+      expect(cam.scrollY).toBeCloseTo(0);
     });
   });
 

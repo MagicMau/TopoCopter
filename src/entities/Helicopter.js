@@ -270,6 +270,8 @@ export default class Helicopter extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5);
     this.setDepth(toFiniteNumber(options.depth, 5));
     this.setDisplaySize(size.width, size.height);
+    this._baseDisplayWidth = size.width;
+    this._baseDisplayHeight = size.height;
 
     this.movementController = new MovementController(buildMovementConfig(options));
     this.rotationController = new RotationController(buildRotationConfig(options));
@@ -445,6 +447,13 @@ export default class Helicopter extends Phaser.Physics.Arcade.Sprite {
     return {
       x: toFiniteNumber(velocity?.x, 0),
       y: toFiniteNumber(velocity?.y, 0),
+    };
+  }
+
+  getBaseDisplaySize() {
+    return {
+      width: this._baseDisplayWidth,
+      height: this._baseDisplayHeight,
     };
   }
 

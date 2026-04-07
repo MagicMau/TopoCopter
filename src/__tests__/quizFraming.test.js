@@ -120,6 +120,8 @@ describe('computeFixedFraming', () => {
     expect(result.centerY).toBeCloseTo(bounds.centerY, 3);
     expect(result.scrollX).toBeCloseTo(result.centerX - viewW * 0.5 / result.zoom, 3);
     expect(result.scrollY).toBeCloseTo(result.centerY - viewH * 0.5 / result.zoom, 3);
+    expect(result.cameraScrollX).toBeCloseTo(result.centerX - viewW * 0.5, 3);
+    expect(result.cameraScrollY).toBeCloseTo(result.centerY - viewH * 0.5, 3);
   });
 
   it('respects maxZoom: never exceeds the given ceiling', () => {

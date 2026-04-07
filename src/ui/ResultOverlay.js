@@ -102,6 +102,7 @@ export default class ResultOverlay {
   }
 
   _makeButton(x, y, label, onClick) {
+    let pressedPointerId = null;
     const btn = this._reg(
       this._scene.add.text(x, y, label, {
         fontFamily:      FONT,
@@ -115,9 +116,23 @@ export default class ResultOverlay {
         .setInteractive({ useHandCursor: true }),
     );
 
-    btn.on('pointerdown',  onClick);
+    btn.on('pointerdown', (pointer) => {
+      pressedPointerId = pointer.id;
+      btn.setStyle({ backgroundColor: BTN_BG_HOVER });
+    });
+    btn.on('pointerup', (pointer) => {
+      const shouldClick = pressedPointerId === pointer.id;
+      pressedPointerId = null;
+      btn.setStyle({ backgroundColor: BTN_BG_NORMAL });
+      if (shouldClick) {
+        onClick();
+      }
+    });
     btn.on('pointerover',  () => btn.setStyle({ backgroundColor: BTN_BG_HOVER }));
-    btn.on('pointerout',   () => btn.setStyle({ backgroundColor: BTN_BG_NORMAL }));
+    btn.on('pointerout',   () => {
+      pressedPointerId = null;
+      btn.setStyle({ backgroundColor: BTN_BG_NORMAL });
+    });
   }
 
   _reg(obj) {

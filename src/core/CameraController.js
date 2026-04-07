@@ -1,3 +1,10 @@
+import {
+  getCameraScrollForVisibleWorldOrigin,
+  getCameraScrollForWorldCenter,
+  getCameraViewportMetrics,
+  setCameraScroll,
+} from './cameraMath.js';
+
 const DEFAULT_OPTIONS = Object.freeze({
   followLag: 0.18,
   maxCatchUpSpeed: Number.POSITIVE_INFINITY,
@@ -10,20 +17,6 @@ const toFiniteNumber = (value, fallback) => {
 
 const clamp = (value, minimum, maximum) =>
   Math.min(Math.max(value, minimum), maximum);
-
-const setCameraScroll = (camera, x, y) => {
-  if (!camera) {
-    return;
-  }
-
-  if (typeof camera.setScroll === 'function') {
-    camera.setScroll(x, y);
-    return;
-  }
-
-  camera.scrollX = x;
-  camera.scrollY = y;
-};
 
 const resolveWorldDimension = (camera, explicitDimension, axis) => {
   if (Number.isFinite(explicitDimension)) {
@@ -220,25 +213,24 @@ export default class CameraController {
       return false;
     }
 
-    const zoom = Math.max(toFiniteNumber(this.camera.zoom, 1), 0.0001);
-    const camWidth = toFiniteNumber(this.camera.width, 0);
-    const camHeight = toFiniteNumber(this.camera.height, 0);
-
-    // scrollX = worldCenter - halfW/zoom so that: worldX at screen centre = scrollX + halfW/zoom = worldCenter
-    // This is consistent with Phaser's rendering: worldX = scrollX + screenX/zoom.
-    const halfWOverZoom = camWidth * 0.5 / zoom;
-    const halfHOverZoom = camHeight * 0.5 / zoom;
-    const idealScrollX = this.targetPosition.x - halfWOverZoom;
-    const idealScrollY = this.targetPosition.y - halfHOverZoom;
+    const metrics = getCameraViewportMetrics(this.camera);
+    const zoom = metrics.zoom;
+    const camWidth = metrics.width;
+    const camHeight = metrics.height;
+    const idealScroll = getCameraScrollForWorldCenter(
+      this.camera,
+      this.targetPosition.x,
+      this.targetPosition.y,
+      this.desiredScroll,
+    );
 
     if (this.deadzoneWidth > 0 || this.deadzoneHeight > 0) {
       const currentScrollX = toFiniteNumber(this.camera.scrollX, 0);
       const currentScrollY = toFiniteNumber(this.camera.scrollY, 0);
-
-      // Target's offset from viewport centre in screen pixels.
-      // worldX = scrollX + screenX/zoom → screenX = (worldX - scrollX)*zoom
-      const offsetX = (this.targetPosition.x - currentScrollX) * zoom - camWidth * 0.5;
-      const offsetY = (this.targetPosition.y - currentScrollY) * zoom - camHeight * 0.5;
+      const offsetX =
+        (this.targetPosition.x - (currentScrollX + camWidth * 0.5)) * zoom;
+      const offsetY =
+        (this.targetPosition.y - (currentScrollY + camHeight * 0.5)) * zoom;
 
       const halfDZW = this.deadzoneWidth * 0.5;
       const halfDZH = this.deadzoneHeight * 0.5;
@@ -248,20 +240,20 @@ export default class CameraController {
       let desiredScrollY = currentScrollY;
 
       if (offsetX > halfDZW) {
-        desiredScrollX = this.targetPosition.x - (camWidth * 0.5 + halfDZW) / zoom;
+        desiredScrollX = this.targetPosition.x - camWidth * 0.5 - halfDZW / zoom;
       } else if (offsetX < -halfDZW) {
-        desiredScrollX = this.targetPosition.x - (camWidth * 0.5 - halfDZW) / zoom;
+        desiredScrollX = this.targetPosition.x - camWidth * 0.5 + halfDZW / zoom;
       }
 
       if (offsetY > halfDZH) {
-        desiredScrollY = this.targetPosition.y - (camHeight * 0.5 + halfDZH) / zoom;
+        desiredScrollY = this.targetPosition.y - camHeight * 0.5 - halfDZH / zoom;
       } else if (offsetY < -halfDZH) {
-        desiredScrollY = this.targetPosition.y - (camHeight * 0.5 - halfDZH) / zoom;
+        desiredScrollY = this.targetPosition.y - camHeight * 0.5 + halfDZH / zoom;
       }
 
       this.clampScroll(desiredScrollX, desiredScrollY, this.desiredScroll, zoom);
     } else {
-      this.clampScroll(idealScrollX, idealScrollY, this.desiredScroll, zoom);
+      this.clampScroll(idealScroll.x, idealScroll.y, this.desiredScroll, zoom);
     }
 
     return true;
@@ -296,25 +288,30 @@ export default class CameraController {
       return output;
     }
 
-    const cameraWidth = toFiniteNumber(this.camera?.width, 0);
-    const cameraHeight = toFiniteNumber(this.camera?.height, 0);
-    // viewWidth/viewHeight: world units visible at current zoom (scrollX = world at screen left)
-    const viewWidth = cameraWidth / zoom;
-    const viewHeight = cameraHeight / zoom;
+    const metrics = getCameraViewportMetrics(this.camera, zoom);
+    const visibleOffsetX = metrics.offsetX;
+    const visibleOffsetY = metrics.offsetY;
+    const visibleLeft = scrollX + visibleOffsetX;
+    const visibleTop = scrollY + visibleOffsetY;
     const bx = bounds.x;
     const by = bounds.y;
     const bw = bounds.width;
     const bh = bounds.height;
+    const clampedVisibleLeft = bw > metrics.viewWidth
+      ? clamp(visibleLeft, bx, bx + bw - metrics.viewWidth)
+      : bx + (bw - metrics.viewWidth) * 0.5;
+    const clampedVisibleTop = bh > metrics.viewHeight
+      ? clamp(visibleTop, by, by + bh - metrics.viewHeight)
+      : by + (bh - metrics.viewHeight) * 0.5;
+    const clampedScroll = getCameraScrollForVisibleWorldOrigin(
+      this.camera,
+      clampedVisibleLeft,
+      clampedVisibleTop,
+      zoom,
+      output,
+    );
 
-    output.x = bw > viewWidth
-      ? clamp(scrollX, bx, bx + bw - viewWidth)
-      : bx + (bw - viewWidth) * 0.5;
-
-    output.y = bh > viewHeight
-      ? clamp(scrollY, by, by + bh - viewHeight)
-      : by + (bh - viewHeight) * 0.5;
-
-    return output;
+    return clampedScroll;
   }
 
   destroy() {

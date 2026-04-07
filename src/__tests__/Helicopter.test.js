@@ -264,6 +264,7 @@ describe('Helicopter (fallback-body / no-physics environment)', () => {
       const heli = new Helicopter(makeScene(), 0, 0);
       expect(typeof heli._physicsWidth).toBe('number');
       expect(typeof heli._physicsHeight).toBe('number');
+      expect(heli.getBaseDisplaySize()).toEqual({ width: 80, height: 80 });
       expect(heli._physicsWidth).toBeGreaterThan(0);
       expect(heli._physicsHeight).toBeGreaterThan(0);
     });

@@ -7,7 +7,7 @@
 export const ROTOR_HOVER = { freq: 27, gain: 0.08 };
 
 /** Rotor frequency and gain at full flying speed (faster and louder). */
-export const ROTOR_FLY = { freq: 34, gain: 0.14 };
+export const ROTOR_FLY = { freq: 40, gain: 0.14 };
 
 /**
  * Interpolate rotor frequency and gain between hover and flying states.

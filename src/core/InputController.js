@@ -1,5 +1,17 @@
 import Phaser from 'phaser';
 import { CAMERA_LIMITS } from '../ui/styles.js';
+import {
+  debugLog,
+  describeCameraView,
+} from './runtimeDebug.js';
+import {
+  getCameraScrollForVisibleWorldOrigin,
+  getCameraScrollForWorldPoint,
+  getCameraVisibleWorldRect,
+  getCameraWorldPoint,
+  getCameraViewportMetrics,
+  setCameraScroll,
+} from './cameraMath.js';
 
 export default class InputController {
   constructor(scene, options = {}) {
@@ -55,6 +67,8 @@ export default class InputController {
     this.lastTapTime = Number.NEGATIVE_INFINITY;
     this.lastTapX = 0;
     this.lastTapY = 0;
+    this._activeZoomDebugSource = null;
+    this._lastZoomDebugAt = Number.NEGATIVE_INFINITY;
     this.pointerCanvasPoint = new Phaser.Math.Vector2();
     this.pointerWorldPoint = new Phaser.Math.Vector2();
 
@@ -90,6 +104,7 @@ export default class InputController {
           pointer,
           this.pointerCanvasPoint,
         );
+        this._activeZoomDebugSource = 'double-tap';
         this.zoomTo(
           this.camera.zoom * this.doubleTapZoomFactor,
           canvasPoint.x,
@@ -210,6 +225,7 @@ export default class InputController {
       }
     }
 
+    this._activeZoomDebugSource = 'wheel';
     this.zoomTo(this.camera.zoom * zoomScale, anchorX, anchorY);
   }
 
@@ -307,6 +323,7 @@ export default class InputController {
     const pinchMidX = (pointerA.x + pointerB.x) * 0.5;
     const pinchMidY = (pointerA.y + pointerB.y) * 0.5;
     const zoomFactor = pinchDistance / this.lastPinchDistance;
+    this._activeZoomDebugSource = 'pinch';
     this.zoomTo(
       this.camera.zoom * zoomFactor,
       pinchMidX,
@@ -385,16 +402,7 @@ export default class InputController {
     zoom = this.camera.zoom,
     output = this.pointerWorldPoint,
   ) {
-    const resolvedZoom = Math.max(Number(zoom) || 0, 0.0001);
-    const cameraX = this.camera.x;
-    const cameraY = this.camera.y;
-
-    // Phaser rendering: worldX = scrollX + (screenX - cameraX) / zoom
-    // (consistent with Phaser's own camera.getWorldPoint formula)
-    output.x = this.camera.scrollX + (canvasX - cameraX) / resolvedZoom;
-    output.y = this.camera.scrollY + (canvasY - cameraY) / resolvedZoom;
-
-    return output;
+    return getCameraWorldPoint(this.camera, canvasX, canvasY, zoom, output);
   }
 
   getPointerWorldPoint(pointer, output = this.pointerWorldPoint) {
@@ -414,14 +422,19 @@ export default class InputController {
     anchorX = screenX,
     anchorY = screenY,
   ) {
+    const source = this._activeZoomDebugSource ?? 'direct';
+    this._activeZoomDebugSource = null;
     const nextZoom = this.clampZoom(zoom);
     const prevZoom = this.camera.zoom;
     if (nextZoom === prevZoom) {
       return;
     }
 
-    const camX = this.camera.x;
-    const camY = this.camera.y;
+    const beforeCamera = describeCameraView(
+      this.camera,
+      this.scene?.projection,
+    );
+
     const anchorWorldPoint = this.getWorldPointFromCanvas(
       anchorX,
       anchorY,
@@ -432,11 +445,41 @@ export default class InputController {
     const anchorWorldY = anchorWorldPoint.y;
 
     this.camera.setZoom(nextZoom);
-
-    this.camera.scrollX = anchorWorldX - (screenX - camX) / nextZoom;
-    this.camera.scrollY = anchorWorldY - (screenY - camY) / nextZoom;
+    const nextScroll = getCameraScrollForWorldPoint(
+      this.camera,
+      anchorWorldX,
+      anchorWorldY,
+      screenX,
+      screenY,
+      nextZoom,
+      this.pointerCanvasPoint,
+    );
+    setCameraScroll(this.camera, nextScroll.x, nextScroll.y);
 
     this.clampCamera();
+
+    if (this._shouldLogZoomEvent(source)) {
+      debugLog('INPUT-ZOOM', 'Applied zoomTo', {
+        source,
+        requestedZoom: zoom,
+        previousZoom: prevZoom,
+        nextZoom,
+        screenPoint: {
+          x: screenX,
+          y: screenY,
+        },
+        anchorCanvasPoint: {
+          x: anchorX,
+          y: anchorY,
+        },
+        anchorWorldPoint: {
+          x: anchorWorldX,
+          y: anchorWorldY,
+        },
+        beforeCamera,
+        afterCamera: describeCameraView(this.camera, this.scene?.projection),
+      });
+    }
   }
 
   clampZoom(zoom) {
@@ -444,9 +487,27 @@ export default class InputController {
   }
 
   setZoomLimits(minZoom, maxZoom = this.maxZoom) {
+    const before = {
+      minZoom: this.minZoom,
+      maxZoom: this.maxZoom,
+      camera: describeCameraView(this.camera, this.scene?.projection),
+    };
+
     this.minZoom = minZoom;
     this.maxZoom = Math.max(maxZoom, minZoom);
+    this._activeZoomDebugSource = 'zoom-limits';
     this.zoomTo(this.clampZoom(this.camera.zoom));
+
+    debugLog('INPUT-ZOOM-LIMITS', 'Updated zoom limits', {
+      before,
+      after: {
+        minZoom: this.minZoom,
+        maxZoom: this.maxZoom,
+        camera: describeCameraView(this.camera, this.scene?.projection),
+      },
+      zoomLocked: this.zoomLocked,
+      dragLocked: this.dragLocked,
+    });
   }
 
   resolveScrollBounds() {
@@ -479,32 +540,80 @@ export default class InputController {
       return;
     }
 
-    const zoom = Math.max(Number(this.camera.zoom) || 0, 0.0001);
-    const cameraWidth = Number(this.camera.width) || 0;
-    const cameraHeight = Number(this.camera.height) || 0;
-    // viewWidth/viewHeight: world units visible at current zoom (scrollX = world at screen left)
-    const viewWidth = cameraWidth / zoom;
-    const viewHeight = cameraHeight / zoom;
+    const beforeScrollX = this.camera.scrollX;
+    const beforeScrollY = this.camera.scrollY;
+    const metrics = getCameraViewportMetrics(this.camera);
+    const visibleRect = getCameraVisibleWorldRect(this.camera, metrics.zoom);
     const bx = Number(bounds.x) || 0;
     const by = Number(bounds.y) || 0;
     const bw = Number(bounds.width) || 0;
     const bh = Number(bounds.height) || 0;
+    let nextVisibleLeft;
+    let nextVisibleTop;
 
-    if (bw > viewWidth) {
-      this.camera.scrollX = Phaser.Math.Clamp(this.camera.scrollX, bx, bx + bw - viewWidth);
+    if (bw > visibleRect.width) {
+      nextVisibleLeft = Phaser.Math.Clamp(
+        visibleRect.left,
+        bx,
+        bx + bw - visibleRect.width,
+      );
     } else {
-      this.camera.scrollX = bx + (bw - viewWidth) * 0.5;
+      nextVisibleLeft = bx + (bw - visibleRect.width) * 0.5;
     }
 
-    if (bh > viewHeight) {
-      this.camera.scrollY = Phaser.Math.Clamp(this.camera.scrollY, by, by + bh - viewHeight);
+    if (bh > visibleRect.height) {
+      nextVisibleTop = Phaser.Math.Clamp(
+        visibleRect.top,
+        by,
+        by + bh - visibleRect.height,
+      );
     } else {
-      this.camera.scrollY = by + (bh - viewHeight) * 0.5;
+      nextVisibleTop = by + (bh - visibleRect.height) * 0.5;
+    }
+
+    const nextScroll = getCameraScrollForVisibleWorldOrigin(
+      this.camera,
+      nextVisibleLeft,
+      nextVisibleTop,
+      metrics.zoom,
+      this.pointerCanvasPoint,
+    );
+    setCameraScroll(this.camera, nextScroll.x, nextScroll.y);
+
+    if (
+      Math.abs(this.camera.scrollX - beforeScrollX) > 0.001
+      || Math.abs(this.camera.scrollY - beforeScrollY) > 0.001
+    ) {
+      debugLog('INPUT-CLAMP', 'Clamped camera scroll to world bounds', {
+        bounds,
+        zoom: metrics.zoom,
+        before: {
+          scrollX: beforeScrollX,
+          scrollY: beforeScrollY,
+        },
+        after: describeCameraView(this.camera, this.scene?.projection),
+      });
     }
   }
 
   isCommandSteeringActive() {
     return this.commandPointerId !== null && this.commandSteering;
+  }
+
+  _shouldLogZoomEvent(source) {
+    if (source === 'zoom-limits' || source === 'direct' || source === 'double-tap') {
+      return true;
+    }
+
+    const now = Number(this.scene?.time?.now);
+    const timestamp = Number.isFinite(now) ? now : Date.now();
+
+    if (timestamp - this._lastZoomDebugAt >= 250) {
+      this._lastZoomDebugAt = timestamp;
+      return true;
+    }
+
+    return false;
   }
 
   update() {}

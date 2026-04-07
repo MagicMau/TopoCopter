@@ -54,8 +54,12 @@ export function computeTargetBounds(targets, projectFn) {
 /**
  * Compute camera scroll and zoom to fit all targets on screen with padding.
  *
- * Returns `{ scrollX, scrollY, zoom, centerX, centerY }` or `null` when no
- * valid targets can be projected.
+ * Returns `{ scrollX, scrollY, cameraScrollX, cameraScrollY, zoom, centerX,
+ * centerY }` or `null` when no valid targets can be projected.
+ *
+ * `scrollX` / `scrollY` are the visible world-rect top-left values.
+ * `cameraScrollX` / `cameraScrollY` are the Phaser camera `scrollX` /
+ * `scrollY` values needed to centre the view on `centerX` / `centerY`.
  *
  * @param {Array<{lat:number, lon:number}>} targets
  * @param {function(lat:number, lon:number): {x:number, y:number}|null} projectFn
@@ -99,6 +103,16 @@ export function computeFixedFraming(
 
   const scrollX = centerX - safeViewWidth * 0.5 / safeZoom;
   const scrollY = centerY - safeViewHeight * 0.5 / safeZoom;
+  const cameraScrollX = centerX - safeViewWidth * 0.5;
+  const cameraScrollY = centerY - safeViewHeight * 0.5;
 
-  return { scrollX, scrollY, zoom: safeZoom, centerX, centerY };
+  return {
+    scrollX,
+    scrollY,
+    cameraScrollX,
+    cameraScrollY,
+    zoom: safeZoom,
+    centerX,
+    centerY,
+  };
 }

@@ -4,6 +4,11 @@ import PreloadScene from '../scenes/PreloadScene.js';
 import QuizSelectionScene from '../scenes/QuizSelectionScene.js';
 import MapScene from '../scenes/MapScene.js';
 import HelicopterScene from '../scenes/HelicopterScene.js';
+import {
+  debugLog,
+  getCanvasMetrics,
+  getWindowMetrics,
+} from './runtimeDebug.js';
 
 const DEFAULT_VIEWPORT = {
   width: 390,
@@ -36,6 +41,13 @@ const readResolution = () => {
 };
 
 const initialViewport = readInitialViewport();
+const initialResolution = readResolution();
+
+debugLog('CONFIG', 'Resolved initial game viewport', {
+  initialViewport,
+  resolution: initialResolution,
+  window: getWindowMetrics(),
+});
 
 const gameConfig = {
   type: Phaser.AUTO,
@@ -73,7 +85,7 @@ const gameConfig = {
     clearBeforeRender: true,
     powerPreference: 'high-performance'
   },
-  resolution: readResolution(),
+  resolution: initialResolution,
   autoRound: false,
   disableContextMenu: true,
   banner: false,
@@ -82,6 +94,24 @@ const gameConfig = {
       game.canvas.style.display = 'block';
       game.canvas.style.width = '100%';
       game.canvas.style.height = '100%';
+
+      debugLog('CONFIG', 'Phaser postBoot canvas metrics', {
+        window: getWindowMetrics(),
+        canvas: getCanvasMetrics(game),
+        scale: {
+          width: game.scale?.width ?? null,
+          height: game.scale?.height ?? null,
+          baseSize: {
+            width: game.scale?.baseSize?.width ?? null,
+            height: game.scale?.baseSize?.height ?? null,
+          },
+          gameSize: {
+            width: game.scale?.gameSize?.width ?? null,
+            height: game.scale?.gameSize?.height ?? null,
+          },
+        },
+        resolution: game.config?.resolution ?? initialResolution,
+      });
     }
   }
 };

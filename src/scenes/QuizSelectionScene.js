@@ -2,6 +2,11 @@ import Phaser from 'phaser';
 import { DATA_CACHE_KEYS } from './PreloadScene.js';
 import { OVERLAY_STYLE, PALETTE } from '../ui/styles.js';
 import { getAudioManager } from '../audio/AudioManager.js';
+import {
+  debugLog,
+  getCanvasMetrics,
+  getWindowMetrics,
+} from '../core/runtimeDebug.js';
 
 const CARD_PADDING_X = 20;
 const CARD_PADDING_Y = 14;
@@ -46,6 +51,19 @@ export default class QuizSelectionScene extends Phaser.Scene {
 
     const quizSetsData = this.cache.json.get(DATA_CACHE_KEYS.QUIZ_SETS);
     this._quizSets = quizSetsData?.sets ?? [];
+
+    debugLog('QUIZ-SELECT', 'Loaded quiz selection scene', {
+      viewport: { width, height },
+      window: getWindowMetrics(),
+      canvas: getCanvasMetrics(this.game),
+      quizSets: this._quizSets.map((quizSet) => ({
+        id: quizSet.id ?? null,
+        name: quizSet.name ?? null,
+        fixedFraming: Boolean(quizSet.fixedFraming),
+        targetCount: Array.isArray(quizSet.targets) ? quizSet.targets.length : 0,
+        searchTime: quizSet.searchTime ?? null,
+      })),
+    });
 
     this._buildUI(this._quizSets, width, height);
 
@@ -107,6 +125,7 @@ export default class QuizSelectionScene extends Phaser.Scene {
       this._listWidth,
       this._listHeight,
     );
+    this._listMaskGraphics.setVisible(false);
     this._listContainer.setMask(this._listMaskGraphics.createGeometryMask());
 
     let cursorY = 0;
@@ -208,6 +227,18 @@ export default class QuizSelectionScene extends Phaser.Scene {
       cardState.clearPress();
 
       if (shouldStart) {
+        debugLog('QUIZ-SELECT', 'Launching quiz set from selection scene', {
+          quizSetId: quizSet.id ?? null,
+          quizSetName: quizSet.name ?? null,
+          fixedFraming: Boolean(quizSet.fixedFraming),
+          targetCount,
+          viewport: {
+            width: this.scale.width,
+            height: this.scale.height,
+          },
+          window: getWindowMetrics(),
+          canvas: getCanvasMetrics(this.game),
+        });
         this.scene.start('HelicopterScene', { quizSetId: quizSet.id });
       }
     });
