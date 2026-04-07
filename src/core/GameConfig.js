@@ -9,6 +9,7 @@ import {
   getCanvasMetrics,
   getWindowMetrics,
 } from './runtimeDebug.js';
+import { getAudioManager } from '../audio/AudioManager.js';
 
 const DEFAULT_VIEWPORT = {
   width: 390,
@@ -52,7 +53,7 @@ debugLog('CONFIG', 'Resolved initial game viewport', {
 const gameConfig = {
   type: Phaser.AUTO,
   parent: 'game-root',
-  backgroundColor: '#eef2f5',
+  backgroundColor: '#f4f7fb',
   scene: [BootScene, PreloadScene, QuizSelectionScene, MapScene, HelicopterScene],
   physics: {
     default: 'arcade',
@@ -96,6 +97,13 @@ const gameConfig = {
       game.canvas.style.display = 'block';
       game.canvas.style.width = '100%';
       game.canvas.style.height = '100%';
+
+      // iOS Safari / mobile Edge: Phaser's touch capture can swallow events
+      // before they reach document-level bootstrap listeners. Attach directly
+      // on the canvas so we always catch the first gesture.
+      const unlockAudio = () => getAudioManager().unlock();
+      game.canvas.addEventListener('pointerdown', unlockAudio, { passive: true });
+      game.canvas.addEventListener('touchstart',  unlockAudio, { passive: true });
 
       debugLog('CONFIG', 'Phaser postBoot canvas metrics', {
         window: getWindowMetrics(),
