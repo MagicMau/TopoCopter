@@ -31,54 +31,55 @@ import { getAudioManager } from '../audio/AudioManager.js';
 const FONT = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
 const CSS = {
-  backdrop: [
+  bar: [
     'position:fixed',
     'left:0',
     'top:0',
-    'width:var(--app-viewport-width,100vw)',
-    'height:var(--app-viewport-height,100dvh)',
-    'padding:calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px)',
-    'display:flex',
-    'align-items:flex-start',
-    'justify-content:center',
-    'overflow:auto',
-    'background:rgba(15,23,42,0.55)',
+    'right:0',
+    'padding-top:env(safe-area-inset-top, 0px)',
+    'background:#1e293b',
+    'box-shadow:0 2px 12px rgba(0,0,0,0.55)',
     'z-index:9999',
+    'box-sizing:border-box',
   ].join(';'),
 
-  card: [
-    'background:#1e293b',
-    'border-radius:12px',
-    'padding:24px 28px',
-    'max-width:360px',
-    'width:calc(100% - 48px)',
-    'box-sizing:border-box',
+  inner: [
+    'padding:8px 12px 6px',
     'display:flex',
     'flex-direction:column',
-    'gap:14px',
-    'margin-top:clamp(16px, 10vh, 96px)',
-    `box-shadow:0 8px 32px rgba(0,0,0,0.60)`,
+    'gap:4px',
   ].join(';'),
 
   prompt: [
     'margin:0',
-    'color:#f8fafc',
+    'color:#94a3b8',
     `font-family:${FONT}`,
-    'font-size:16px',
-    'font-weight:600',
-    'line-height:1.4',
+    'font-size:13px',
+    'font-weight:500',
+    'line-height:1.3',
+    'white-space:nowrap',
+    'overflow:hidden',
+    'text-overflow:ellipsis',
+  ].join(';'),
+
+  inputRow: [
+    'display:flex',
+    'gap:6px',
+    'align-items:center',
   ].join(';'),
 
   input: [
-    'width:100%',
+    'flex:1 1 0',
+    'min-width:0',
     'box-sizing:border-box',
-    'padding:10px 12px',
+    'height:36px',
+    'padding:0 10px',
     'border-radius:6px',
     'border:2px solid #334155',
     'background:#0f172a',
     'color:#f8fafc',
     `font-family:${FONT}`,
-    'font-size:16px',
+    'font-size:15px',
     'outline:none',
     'transition:border-color 0.15s',
   ].join(';'),
@@ -87,15 +88,9 @@ const CSS = {
     'margin:0',
     'color:#f87171',
     `font-family:${FONT}`,
-    'font-size:14px',
+    'font-size:12px',
+    'line-height:1.2',
     'display:none',
-  ].join(';'),
-
-  btnRow: [
-    'display:flex',
-    'gap:10px',
-    'justify-content:flex-end',
-    'align-items:center',
   ].join(';'),
 };
 
@@ -150,61 +145,62 @@ export default class TypingOverlay {
   _build({ prompt, onSkip }) {
     this._teardown();
 
-    // ── Backdrop ───────────────────────────────────────────────────────────
-    const backdrop = document.createElement('div');
-    backdrop.style.cssText = CSS.backdrop;
-    backdrop.setAttribute('role', 'dialog');
-    backdrop.setAttribute('aria-modal', 'true');
-    backdrop.setAttribute('aria-label', 'Antwoord invoeren');
+    // ── Bar ────────────────────────────────────────────────────────────────
+    const bar = document.createElement('div');
+    bar.style.cssText = CSS.bar;
+    bar.setAttribute('role', 'dialog');
+    bar.setAttribute('aria-modal', 'true');
+    bar.setAttribute('aria-label', 'Antwoord invoeren');
 
-    // ── Card ───────────────────────────────────────────────────────────────
-    const card = document.createElement('div');
-    card.style.cssText = CSS.card;
+    const inner = document.createElement('div');
+    inner.style.cssText = CSS.inner;
 
     // ── Prompt ─────────────────────────────────────────────────────────────
     const promptEl = document.createElement('p');
-    promptEl.id          = 'typing-overlay-prompt';
-    promptEl.textContent = prompt;
+    promptEl.id            = 'typing-overlay-prompt';
+    promptEl.textContent   = prompt;
     promptEl.style.cssText = CSS.prompt;
 
-    // ── Input ──────────────────────────────────────────────────────────────
+    // ── Input row ──────────────────────────────────────────────────────────
+    const inputRow = document.createElement('div');
+    inputRow.style.cssText = CSS.inputRow;
+
     const input = document.createElement('input');
-    input.type             = 'text';
-    input.autocomplete     = 'off';
-    input.autocapitalize   = 'none';
-    input.spellcheck       = false;
-    input.placeholder      = 'Typ je antwoord…';
+    input.type           = 'text';
+    input.autocomplete   = 'off';
+    input.autocapitalize = 'none';
+    input.spellcheck     = false;
+    input.placeholder    = 'Typ je antwoord…';
     input.setAttribute('aria-labelledby', 'typing-overlay-prompt');
-    input.style.cssText    = CSS.input;
+    input.style.cssText  = CSS.input;
     this._input = input;
 
-    // ── Error feedback ────────────────────────────────────────────────────
-    const error = document.createElement('p');
-    error.textContent    = 'Helaas, probeer opnieuw!';
-    error.style.cssText  = CSS.error;
-    error.setAttribute('aria-live', 'polite');
-    this._error = error;
-
-    // ── Button row ─────────────────────────────────────────────────────────
-    const btnRow = document.createElement('div');
-    btnRow.style.cssText = CSS.btnRow;
-
     if (onSkip) {
-      const skipBtn = this._makeSecondaryButton('Overslaan', () => {
+      const skipBtn = this._makeSecondaryButton('Sla over', () => {
         this.hide();
         onSkip();
       });
-      btnRow.appendChild(skipBtn);
+      inputRow.appendChild(input);
+      inputRow.appendChild(skipBtn);
+    } else {
+      inputRow.appendChild(input);
     }
 
-    const submitBtn = this._makePrimaryButton('Controleer', () => this._submit());
-    btnRow.appendChild(submitBtn);
+    const submitBtn = this._makePrimaryButton('OK', () => this._submit());
+    inputRow.appendChild(submitBtn);
+
+    // ── Error feedback ─────────────────────────────────────────────────────
+    const error = document.createElement('p');
+    error.textContent   = 'Helaas, probeer opnieuw!';
+    error.style.cssText = CSS.error;
+    error.setAttribute('aria-live', 'polite');
+    this._error = error;
 
     // ── Assemble ───────────────────────────────────────────────────────────
-    card.append(promptEl, input, error, btnRow);
-    backdrop.appendChild(card);
-    this._host.appendChild(backdrop);
-    this._root = backdrop;
+    inner.append(promptEl, inputRow, error);
+    bar.appendChild(inner);
+    this._host.appendChild(bar);
+    this._root = bar;
 
     // Focus the input on the next animation frame so the keyboard
     // appears on mobile and desktop focus rings render correctly.
@@ -213,9 +209,9 @@ export default class TypingOverlay {
     document.addEventListener('keydown', this._boundKeydown);
     input.addEventListener('input', this._boundInput);
     input.addEventListener('focus', this._boundUnlockAudio);
-    backdrop.addEventListener('pointerdown', this._boundUnlockAudio);
-    backdrop.addEventListener('touchstart', this._boundUnlockAudio, { passive: true });
-    backdrop.addEventListener('mousedown', this._boundUnlockAudio);
+    bar.addEventListener('pointerdown', this._boundUnlockAudio);
+    bar.addEventListener('touchstart', this._boundUnlockAudio, { passive: true });
+    bar.addEventListener('mousedown', this._boundUnlockAudio);
   }
 
   _submit() {
@@ -275,11 +271,14 @@ export default class TypingOverlay {
       'color:#ffffff',
       'border:none',
       'border-radius:6px',
-      'padding:9px 18px',
+      'height:36px',
+      'padding:0 14px',
       `font-family:${FONT}`,
       'font-size:14px',
       'font-weight:600',
       'cursor:pointer',
+      'white-space:nowrap',
+      'flex-shrink:0',
       'transition:background 0.12s',
     ].join(';');
     btn.addEventListener('mouseover', () => { btn.style.background = '#ea5a3a'; });
@@ -299,10 +298,13 @@ export default class TypingOverlay {
       'color:#94a3b8',
       'border:1px solid #475569',
       'border-radius:6px',
-      'padding:9px 16px',
+      'height:36px',
+      'padding:0 10px',
       `font-family:${FONT}`,
-      'font-size:14px',
+      'font-size:13px',
       'cursor:pointer',
+      'white-space:nowrap',
+      'flex-shrink:0',
       'transition:background 0.12s,color 0.12s',
     ].join(';');
     btn.addEventListener('mouseover', () => {
