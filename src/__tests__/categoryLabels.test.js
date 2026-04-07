@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getDutchCategoryLabel } from '../quiz/categoryLabels.js';
+import {
+  getDutchCategoryLabel,
+  getDutchCategoryPromptDescriptor,
+} from '../quiz/categoryLabels.js';
 
 describe('getDutchCategoryLabel', () => {
   it('maps quiz categories that are used in the current data set', () => {
@@ -16,5 +19,16 @@ describe('getDutchCategoryLabel', () => {
   it('falls back when the category is empty', () => {
     expect(getDutchCategoryLabel('', '?')).toBe('?');
     expect(getDutchCategoryLabel(null, 'gebied')).toBe('gebied');
+  });
+
+  it('returns the correct Dutch article for prompt text', () => {
+    expect(getDutchCategoryPromptDescriptor('countries', 'gebied')).toEqual({
+      label: 'land',
+      article: 'dit',
+    });
+    expect(getDutchCategoryPromptDescriptor('cities', 'gebied')).toEqual({
+      label: 'stad',
+      article: 'deze',
+    });
   });
 });

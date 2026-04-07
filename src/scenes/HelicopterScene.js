@@ -22,7 +22,7 @@ import { getAudioManager } from '../audio/AudioManager.js';
 import { interpolateRotorProfile } from '../audio/audioProfiles.js';
 import { QUESTION_MODE } from '../quiz/questionModes.js';
 import { matchesAnswer } from '../quiz/answerNormalizer.js';
-import { getDutchCategoryLabel } from '../quiz/categoryLabels.js';
+import { getDutchCategoryPromptDescriptor } from '../quiz/categoryLabels.js';
 import {
   debugLog,
   describeCameraView,
@@ -1500,17 +1500,23 @@ export default class HelicopterScene extends MapScene {
     const overlay = this._getOrCreateTypingOverlay();
     overlay?.show({
       prompt,
-      check:      (raw) => matchesAnswer(raw, target.name),
+      check: (raw) => {
+        const correct = matchesAnswer(raw, target.name);
+        if (correct) {
+          this._audioManager?.playFoundSound();
+        } else {
+          this._audioManager?.playLossSound();
+        }
+        return correct;
+      },
       onAccepted: ()    => this._handleSpellingAccepted(),
     });
   }
 
   /** Called by the TypingOverlay when the player enters the correct answer. */
   _handleSpellingAccepted() {
-    this._spellingAutoFlyActive = false;
     this._spellingWaitingForInput = false;
     this._answerRevealActive      = false;
-    this._audioManager?.playFoundSound();
     this._targetRevealEffect?.unpin();
     this._targetRevealEffect?.clear();
     this._typingOverlay?.hide();
@@ -1524,8 +1530,8 @@ export default class HelicopterScene extends MapScene {
    */
   _buildSpellingPrompt(target) {
     const category = target?.category ?? '';
-    const label    = getDutchCategoryLabel(category, 'gebied');
-    return `Typ de naam van dit ${label}:`;
+    const { article, label } = getDutchCategoryPromptDescriptor(category, 'gebied');
+    return `Typ de naam van ${article} ${label}:`;
   }
 
   /** Lazily create and return the TypingOverlay (safe in non-browser envs). */

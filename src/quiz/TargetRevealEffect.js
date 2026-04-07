@@ -15,6 +15,7 @@ export default class TargetRevealEffect {
 
     this._active = false;
     this._elapsed = 0;
+    this._pulseElapsed = 0;
     this._durationMs = QUIZ_TARGET_STYLE.REVEAL_DURATION_MS;
     this._point = { x: 0, y: 0 };
     this._screenRadiusPx = QUIZ_TARGET_STYLE.REVEAL_AREA_RADIUS;
@@ -26,6 +27,7 @@ export default class TargetRevealEffect {
   playReveal(reveal, point, options = {}) {
     this._active = true;
     this._elapsed = 0;
+    this._pulseElapsed = 0;
     this._durationMs = Number.isFinite(options.durationMs)
       ? Math.max(options.durationMs, 1)
       : QUIZ_TARGET_STYLE.REVEAL_DURATION_MS;
@@ -76,7 +78,12 @@ export default class TargetRevealEffect {
       return false;
     }
 
-    this._elapsed += Math.max(Number(delta) || 0, 0);
+    const elapsedStep = Math.max(Number(delta) || 0, 0);
+    this._pulseElapsed += elapsedStep;
+
+    if (!this._pinned) {
+      this._elapsed += elapsedStep;
+    }
 
     if (!this._pinned && this._elapsed >= this._durationMs) {
       this.clear();
@@ -90,6 +97,8 @@ export default class TargetRevealEffect {
   clear() {
     this._active = false;
     this._pinned = false;
+    this._elapsed = 0;
+    this._pulseElapsed = 0;
     this._renderer = null;
     this._graphics?.clear();
     return this;
@@ -115,7 +124,7 @@ export default class TargetRevealEffect {
       ? 0.5
       : Math.min(this._elapsed / this._durationMs, 1);
     const envelope = Math.sin(progress * Math.PI);
-    const pulse = 0.86 + 0.14 * Math.sin((this._elapsed / 180) * Math.PI * 2);
+    const pulse = 0.86 + 0.14 * Math.sin((this._pulseElapsed / 180) * Math.PI * 2);
     const fillAlpha = 0.08 + 0.22 * envelope * pulse;
     const strokeAlpha = 0.35 + 0.45 * envelope;
 

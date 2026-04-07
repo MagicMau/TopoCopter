@@ -60,7 +60,7 @@ export default class QuizHUD {
     const { score, total } = progress;
 
     this._levelText .setText(levelName ?? '').setVisible(Boolean(levelName));
-    this._labelText .setVisible(true);
+    this._labelText .setText('Vind:').setVisible(true);
     this._targetText.setText(targetName ?? '(onbekend)').setVisible(true);
     this._scoreText .setText(`${score} / ${total}`).setVisible(true);
     this._progBg    .setVisible(true);

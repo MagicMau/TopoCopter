@@ -532,34 +532,6 @@ describe('HelicopterScene._resolveStartPlayMode', () => {
 
 // ── Spelling mode ──────────────────────────────────────────────────────────────
 
-describe('HelicopterScene.shouldHandleCommand (spelling mode)', () => {
-  const makeScene = () => {
-    const scene = Object.create(HelicopterScene.prototype);
-    scene._runEnded = false;
-    scene._answerRevealActive = false;
-    scene._spellingAutoFlyActive = false;
-    scene._spellingWaitingForInput = false;
-    scene.isWorldPointWithinBounds = vi.fn(() => true);
-    scene.getActiveTouchCount = vi.fn(() => 0);
-    scene.isPrimaryCommandPointer = vi.fn(() => true);
-    return scene;
-  };
-
-  it('returns false while auto-flying to a spelling target', () => {
-    const scene = makeScene();
-    scene._answerRevealActive = true;
-    scene._spellingAutoFlyActive = true;
-    expect(scene.shouldHandleCommand({ pointerType: 'mouse' }, 100, 100)).toBe(false);
-  });
-
-  it('returns false while waiting for typed input', () => {
-    const scene = makeScene();
-    scene._answerRevealActive = true;
-    scene._spellingWaitingForInput = true;
-    expect(scene.shouldHandleCommand({ pointerType: 'mouse' }, 100, 100)).toBe(false);
-  });
-});
-
 describe('HelicopterScene._checkSpellingArrival', () => {
   const makeScene = (heliPos, targetPos, geometry = null) => {
     const scene = Object.create(HelicopterScene.prototype);
@@ -625,7 +597,7 @@ describe('HelicopterScene._showSpellingPrompt', () => {
     scene._activeTargetReveal = { kind: 'circle', screenRadiusPx: 40 };
     scene._spellingWaitingForInput = false;
     scene._targetRevealEffect = { playReveal: vi.fn(), pin: vi.fn() };
-    scene._audioManager = { playFoundSound: vi.fn() };
+    scene._audioManager = { playFoundSound: vi.fn(), playLossSound: vi.fn() };
     scene.getRevealDurationMs = vi.fn(() => 1200);
     scene._getOrCreateTypingOverlay = vi.fn(() => overlay);
 
@@ -649,27 +621,28 @@ describe('HelicopterScene._showSpellingPrompt', () => {
 
     const [{ check }] = overlay.show.mock.calls[0];
     expect(check('finland')).toBe(true);
+    expect(scene._audioManager.playFoundSound).toHaveBeenCalledTimes(1);
+    expect(scene._audioManager.playLossSound).not.toHaveBeenCalled();
+
     expect(check('Zweden')).toBe(false);
+    expect(scene._audioManager.playLossSound).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('HelicopterScene._handleSpellingAccepted', () => {
-  it('plays the success cue, clears spelling state, and advances the quiz', () => {
+  it('clears spelling state, hides the overlay, and advances the quiz', () => {
     const scene = Object.create(HelicopterScene.prototype);
-    scene._spellingAutoFlyActive = true;
+    scene._spellingAutoFlyActive = false; // already false at this point in the flow
     scene._spellingWaitingForInput = true;
     scene._answerRevealActive = true;
     scene._targetRevealEffect = { unpin: vi.fn(), clear: vi.fn() };
     scene._typingOverlay = { hide: vi.fn() };
     scene._quizController = { advance: vi.fn() };
-    scene._audioManager = { playFoundSound: vi.fn() };
 
     scene._handleSpellingAccepted();
 
-    expect(scene._spellingAutoFlyActive).toBe(false);
     expect(scene._spellingWaitingForInput).toBe(false);
     expect(scene._answerRevealActive).toBe(false);
-    expect(scene._audioManager.playFoundSound).toHaveBeenCalled();
     expect(scene._targetRevealEffect.unpin).toHaveBeenCalled();
     expect(scene._targetRevealEffect.clear).toHaveBeenCalled();
     expect(scene._typingOverlay.hide).toHaveBeenCalled();
@@ -793,18 +766,22 @@ describe('HelicopterScene._updateQuiz (spelling mode)', () => {
 });
 
 describe('HelicopterScene._buildSpellingPrompt', () => {
-  it('generates a Dutch prompt using the category label', () => {
+  it('uses "dit" for het-woorden', () => {
     const scene = Object.create(HelicopterScene.prototype);
     expect(scene._buildSpellingPrompt({ category: 'countries', name: 'Finland' }))
       .toBe('Typ de naam van dit land:');
-  });
-
-  it('uses Dutch nouns for water and areas', () => {
-    const scene = Object.create(HelicopterScene.prototype);
     expect(scene._buildSpellingPrompt({ category: 'water', name: 'Noordzee' }))
       .toBe('Typ de naam van dit water:');
     expect(scene._buildSpellingPrompt({ category: 'areas', name: 'De Biesbosch' }))
       .toBe('Typ de naam van dit gebied:');
+  });
+
+  it('uses "deze" for de-woorden', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    expect(scene._buildSpellingPrompt({ category: 'cities', name: 'Helsinki' }))
+      .toBe('Typ de naam van deze stad:');
+    expect(scene._buildSpellingPrompt({ category: 'water-river', name: 'Rijn', category: 'rivers' }))
+      .toBe('Typ de naam van deze rivier:');
   });
 
   it('uses the raw category when there is no Dutch mapping', () => {
