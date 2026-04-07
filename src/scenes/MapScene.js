@@ -47,6 +47,7 @@ export default class MapScene extends Phaser.Scene {
     this.detailLayerRenderers = [];
     this.hydroFillLayerRenderers = [];
     this.hydroLineLayerRenderers = [];
+    this.bottomUnavailableGraphics = null;
   }
 
   create() {
@@ -64,6 +65,7 @@ export default class MapScene extends Phaser.Scene {
     this.detailLayerRenderers = [];
     this.hydroFillLayerRenderers = [];
     this.hydroLineLayerRenderers = [];
+    this.bottomUnavailableGraphics = null;
     this.projection = new Projection().init(
       WORLD_LAYOUT.WIDTH,
       WORLD_LAYOUT.HEIGHT,
@@ -353,6 +355,8 @@ export default class MapScene extends Phaser.Scene {
       this.detailMapGraphics.clear();
       this.detailMapGraphics.setVisible(this.detailLayerRenderers.length > 0);
     }
+
+    this.createBottomUnavailableOverlay();
   }
 
   getPreparedLayerData(layer) {
@@ -500,6 +504,59 @@ export default class MapScene extends Phaser.Scene {
       bounds.north === DEFAULT_PROJECTION_BOUNDS.north;
 
     return isFullWorld ? null : bounds;
+  }
+
+  getBottomUnavailableOverlayBounds() {
+    const clipBounds = this.getGeoClipBounds();
+
+    if (!clipBounds) {
+      return null;
+    }
+
+    const projection = this.projection;
+    const worldWidth = Number.isFinite(projection?.width) ? projection.width : WORLD_LAYOUT.WIDTH;
+    const worldHeight = Number.isFinite(projection?.height) ? projection.height : WORLD_LAYOUT.HEIGHT;
+    const overlayTop = Number.isFinite(projection?.offsetY) && Number.isFinite(projection?.mapHeight)
+      ? projection.offsetY + projection.mapHeight
+      : null;
+
+    if (!Number.isFinite(overlayTop) || overlayTop >= worldHeight) {
+      return null;
+    }
+
+    return {
+      x: 0,
+      y: overlayTop,
+      width: worldWidth,
+      height: worldHeight - overlayTop,
+    };
+  }
+
+  createBottomUnavailableOverlay() {
+    const overlayBounds = this.getBottomUnavailableOverlayBounds();
+    const canDraw = this.add && typeof this.add.graphics === 'function';
+
+    if (!overlayBounds || !canDraw) {
+      this.bottomUnavailableGraphics?.clear?.();
+      this.bottomUnavailableGraphics?.setVisible?.(false);
+      return;
+    }
+
+    if (!this.bottomUnavailableGraphics) {
+      this.bottomUnavailableGraphics = this.registerWorldObject(
+        this.add.graphics().setDepth(WORLD_DEPTHS.HELICOPTER + 0.1),
+      );
+    }
+
+    this.bottomUnavailableGraphics.clear();
+    this.bottomUnavailableGraphics.setVisible(true);
+    this.bottomUnavailableGraphics.fillStyle(PALETTE.borderStrong, MAP_STYLE.UNAVAILABLE_REGION_ALPHA);
+    this.bottomUnavailableGraphics.fillRect(
+      overlayBounds.x,
+      overlayBounds.y,
+      overlayBounds.width,
+      overlayBounds.height,
+    );
   }
 
   isLatLonWithinProjectionBounds(lat, lon) {
@@ -975,6 +1032,7 @@ export default class MapScene extends Phaser.Scene {
     this.hydroLineGraphics = null;
     this.mapBorderGraphics = null;
     this.detailMapGraphics = null;
+    this.bottomUnavailableGraphics = null;
     this.mapRenderer = null;
     this.mapBorderRenderer = null;
     this.detailLayerRenderers = [];
