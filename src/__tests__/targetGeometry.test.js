@@ -70,6 +70,18 @@ describe('resolveTargetGeometry', () => {
     expect(geometry.geometry.type).toBe('Polygon');
   });
 
+  it('uses only the containing France polygon instead of the full multipolygon', () => {
+    const geometry = resolveTargetGeometry(
+      { id: 'country-france', category: 'countries', lat: 46.2276, lon: 2.2137 },
+      { worldGeoJson: realWorldGeoJson },
+    );
+
+    expect(geometry.kind).toBe('polygon');
+    expect(geometry.geometry.type).toBe('Polygon');
+    expect(geometryContainsPoint(geometry.geometry, 2.2137, 46.2276)).toBe(true);
+    expect(geometryContainsPoint(geometry.geometry, -53.1258, 3.9339)).toBe(false);
+  });
+
   it('clips the Atlantic Ocean away from Iceland and Ireland', () => {
     const geometry = resolveTargetGeometry(
       { id: 'water-atlantic-ocean', category: 'water', lat: 62.5, lon: -20 },
@@ -80,6 +92,7 @@ describe('resolveTargetGeometry', () => {
     expect(geometryContainsPoint(geometry.geometry, -20, 62.5)).toBe(true);
     expect(geometryContainsPoint(geometry.geometry, -19.0208, 64.9631)).toBe(false);
     expect(geometryContainsPoint(geometry.geometry, -8.2439, 53.4129)).toBe(false);
+    expect(geometryContainsPoint(geometry.geometry, 5.2913, 52.1326)).toBe(false);
   });
 
   it('clips the North Sea away from nearby countries', () => {
@@ -92,6 +105,7 @@ describe('resolveTargetGeometry', () => {
     expect(geometryContainsPoint(geometry.geometry, 3.5, 56)).toBe(true);
     expect(geometryContainsPoint(geometry.geometry, 5.2913, 52.1326)).toBe(false);
     expect(geometryContainsPoint(geometry.geometry, 9.5018, 56.2639)).toBe(false);
+    expect(geometryContainsPoint(geometry.geometry, -1.5, 52.5)).toBe(false);
   });
 
   it('clips the Baltic Sea away from adjacent land', () => {
@@ -104,6 +118,19 @@ describe('resolveTargetGeometry', () => {
     expect(geometryContainsPoint(geometry.geometry, 18, 58.5)).toBe(true);
     expect(geometryContainsPoint(geometry.geometry, 25.0136, 58.5953)).toBe(false);
     expect(geometryContainsPoint(geometry.geometry, 25.7482, 61.9241)).toBe(false);
+    expect(geometryContainsPoint(geometry.geometry, 18.6, 60.1)).toBe(false);
+  });
+
+  it('clips the English Channel away from England and France', () => {
+    const geometry = resolveTargetGeometry(
+      { id: 'water-english-channel', category: 'water', lat: 50.5, lon: -1 },
+      { worldGeoJson: realWorldGeoJson },
+    );
+
+    expect(geometry.kind).toBe('polygon');
+    expect(geometryContainsPoint(geometry.geometry, -1, 50.5)).toBe(true);
+    expect(geometryContainsPoint(geometry.geometry, -1.5, 52.5)).toBe(false);
+    expect(geometryContainsPoint(geometry.geometry, 1.5, 49.5)).toBe(false);
   });
 });
 

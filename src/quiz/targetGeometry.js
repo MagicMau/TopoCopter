@@ -1,3 +1,4 @@
+import polygonClipping from 'polygon-clipping';
 import { TARGET_GEOMETRY_DEFINITIONS } from '../data/targetGeometryDefinitions.js';
 import { QUIZ_TARGET_STYLE } from '../ui/styles.js';
 
@@ -9,6 +10,8 @@ const LAKE_TARGET_IDS = new Set(['water-lake-geneva', 'water-ijsselmeer']);
 const RIVER_TARGET_IDS = new Set(['water-rhine', 'water-danube']);
 
 const DEFAULT_LINE_BUFFER_PX = 18;
+const POLYGON_GEOMETRY_ENTRY_CACHE = new WeakMap();
+const MANUAL_GEOMETRY_RESOLUTION_CACHE = new WeakMap();
 
 const toFiniteNumber = (value, fallback = 0) => {
   const numericValue = Number(value);
@@ -17,6 +20,45 @@ const toFiniteNumber = (value, fallback = 0) => {
 
 function cloneGeometry(geometry) {
   return geometry ? JSON.parse(JSON.stringify(geometry)) : null;
+}
+
+function getCachedManualGeometry(manualGeometry, worldGeoJson) {
+  if (!manualGeometry || typeof manualGeometry !== 'object') {
+    return null;
+  }
+
+  const cacheEntry = MANUAL_GEOMETRY_RESOLUTION_CACHE.get(manualGeometry);
+  if (!cacheEntry) {
+    return null;
+  }
+
+  const cachedGeometry = worldGeoJson
+    ? cacheEntry.withWorld.get(worldGeoJson) ?? null
+    : cacheEntry.withoutWorld;
+  return cloneGeometry(cachedGeometry);
+}
+
+function setCachedManualGeometry(manualGeometry, worldGeoJson, geometry) {
+  if (!manualGeometry || typeof manualGeometry !== 'object' || !geometry) {
+    return;
+  }
+
+  let cacheEntry = MANUAL_GEOMETRY_RESOLUTION_CACHE.get(manualGeometry);
+  if (!cacheEntry) {
+    cacheEntry = {
+      withWorld: new WeakMap(),
+      withoutWorld: null,
+    };
+    MANUAL_GEOMETRY_RESOLUTION_CACHE.set(manualGeometry, cacheEntry);
+  }
+
+  const cachedGeometry = cloneGeometry(geometry);
+  if (worldGeoJson) {
+    cacheEntry.withWorld.set(worldGeoJson, cachedGeometry);
+    return;
+  }
+
+  cacheEntry.withoutWorld = cachedGeometry;
 }
 
 function closeCoordinateRing(ring) {
@@ -75,6 +117,50 @@ function orientRing(ring, clockwise) {
   }
 
   return closeCoordinateRing(closedRing.slice(0, -1).reverse());
+}
+
+function normalizePolygonCoordinates(coordinates) {
+  if (!Array.isArray(coordinates) || coordinates.length === 0) {
+    return [];
+  }
+
+  return coordinates
+    .map((ring, index) => {
+      const closedRing = closeCoordinateRing(ring);
+      if (closedRing.length < 4 || Math.abs(computeRingSignedArea(closedRing)) <= 1e-6) {
+        return null;
+      }
+
+      return orientRing(closedRing, index !== 0);
+    })
+    .filter(Boolean);
+}
+
+function geometryToMultiPolygonCoordinates(geometry) {
+  return extractPolygonCoordinateSets(geometry)
+    .map((polygon) => normalizePolygonCoordinates(polygon))
+    .filter((polygon) => polygon.length > 0 && polygon[0]?.length >= 4);
+}
+
+function multiPolygonCoordinatesToGeometry(multiPolygonCoordinates) {
+  const polygons = (multiPolygonCoordinates ?? [])
+    .map((polygon) => normalizePolygonCoordinates(polygon))
+    .filter((polygon) => polygon.length > 0 && polygon[0]?.length >= 4);
+
+  if (polygons.length === 0) {
+    return null;
+  }
+
+  return polygons.length === 1
+    ? { type: 'Polygon', coordinates: polygons[0] }
+    : { type: 'MultiPolygon', coordinates: polygons };
+}
+
+function geometryToPolygonGeometries(geometry) {
+  return geometryToMultiPolygonCoordinates(geometry).map((polygon) => ({
+    type: 'Polygon',
+    coordinates: polygon,
+  }));
 }
 
 function dedupeRingPoints(ring) {
@@ -227,6 +313,84 @@ function extractGeometries(source, allowedTypes) {
   }
 
   return allowedTypes.has(source.type) ? [source] : [];
+}
+
+function extendCoordinateBounds(bounds, lon, lat) {
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+    return bounds;
+  }
+
+  if (!bounds) {
+    return {
+      minLon: lon,
+      maxLon: lon,
+      minLat: lat,
+      maxLat: lat,
+    };
+  }
+
+  return {
+    minLon: Math.min(bounds.minLon, lon),
+    maxLon: Math.max(bounds.maxLon, lon),
+    minLat: Math.min(bounds.minLat, lat),
+    maxLat: Math.max(bounds.maxLat, lat),
+  };
+}
+
+function computeCoordinateBounds(geometry) {
+  let bounds = null;
+
+  extractPolygonCoordinateSets(geometry).forEach((polygon) => {
+    (polygon ?? []).forEach((ring) => {
+      (ring ?? []).forEach((coordinate) => {
+        bounds = extendCoordinateBounds(
+          bounds,
+          Number(coordinate?.[0]),
+          Number(coordinate?.[1]),
+        );
+      });
+    });
+  });
+
+  return bounds;
+}
+
+function coordinateBoundsIntersect(a, b) {
+  if (!a || !b) {
+    return false;
+  }
+
+  return (
+    a.minLon <= b.maxLon &&
+    a.maxLon >= b.minLon &&
+    a.minLat <= b.maxLat &&
+    a.maxLat >= b.minLat
+  );
+}
+
+function buildPolygonGeometryEntries(source) {
+  return extractGeometries(source, new Set(['Polygon', 'MultiPolygon']))
+    .flatMap((geometry) => geometryToPolygonGeometries(geometry))
+    .map((geometry) => ({
+      geometry,
+      bounds: computeCoordinateBounds(geometry),
+    }))
+    .filter((entry) => entry.bounds);
+}
+
+function getPolygonGeometryEntries(source) {
+  if (!source || typeof source !== 'object') {
+    return [];
+  }
+
+  const cachedEntries = POLYGON_GEOMETRY_ENTRY_CACHE.get(source);
+  if (cachedEntries) {
+    return cachedEntries;
+  }
+
+  const entries = buildPolygonGeometryEntries(source);
+  POLYGON_GEOMETRY_ENTRY_CACHE.set(source, entries);
+  return entries;
 }
 
 function pointInRing(lon, lat, ring) {
@@ -495,12 +659,12 @@ function getBoundsFromProjectedPaths(paths) {
 }
 
 export function findContainingOrNearestPolygonGeometry(source, lon, lat) {
-  const geometries = extractGeometries(source, new Set(['Polygon', 'MultiPolygon']));
+  const geometries = getPolygonGeometryEntries(source);
   let bestGeometry = null;
   let bestDistanceSq = Number.POSITIVE_INFINITY;
 
   for (let index = 0; index < geometries.length; index += 1) {
-    const geometry = geometries[index];
+    const geometry = geometries[index].geometry;
     const distanceSq = distanceSqToPolygonGeometry(geometry, lon, lat);
 
     if (distanceSq === 0) {
@@ -550,12 +714,24 @@ function extractPolygonCoordinateSets(geometry) {
   return [];
 }
 
+function dedupePolygonGeometries(geometries) {
+  const seen = new Set();
+  return (geometries ?? []).filter((geometry) => {
+    const key = JSON.stringify(geometry?.coordinates ?? geometry);
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
 function resolveLandClipGeometries(landClipPoints, worldGeoJson) {
   if (!Array.isArray(landClipPoints) || landClipPoints.length === 0 || !worldGeoJson) {
     return [];
   }
 
-  const seen = new Set();
   const landGeometries = [];
 
   landClipPoints.forEach((point) => {
@@ -570,19 +746,47 @@ function resolveLandClipGeometries(landClipPoints, worldGeoJson) {
       return;
     }
 
-    const key = JSON.stringify(geometry.coordinates ?? geometry);
-    if (seen.has(key)) {
-      return;
-    }
-
-    seen.add(key);
     landGeometries.push(geometry);
   });
 
-  return landGeometries;
+  return dedupePolygonGeometries(landGeometries);
+}
+
+function findIntersectingLandGeometries(baseGeometry, worldGeoJson) {
+  if (!baseGeometry || !worldGeoJson) {
+    return [];
+  }
+
+  const baseBounds = computeCoordinateBounds(baseGeometry);
+  if (!baseBounds) {
+    return [];
+  }
+
+  return getPolygonGeometryEntries(worldGeoJson)
+    .filter((entry) => coordinateBoundsIntersect(baseBounds, entry.bounds))
+    .map((entry) => entry.geometry);
+}
+
+function subtractPolygonGeometries(baseGeometry, landGeometries) {
+  const subject = geometryToMultiPolygonCoordinates(baseGeometry);
+  const clipGeometries = dedupePolygonGeometries(landGeometries)
+    .flatMap((geometry) => geometryToMultiPolygonCoordinates(geometry))
+    .filter((polygon) => polygon.length > 0);
+
+  if (subject.length === 0 || clipGeometries.length === 0) {
+    return baseGeometry;
+  }
+
+  const clippedCoordinates = polygonClipping.difference(subject, ...clipGeometries);
+  return multiPolygonCoordinatesToGeometry(clippedCoordinates) ?? baseGeometry;
 }
 
 function resolveManualGeometry(manualGeometry, datasets = {}) {
+  const cachedGeometry = getCachedManualGeometry(manualGeometry, datasets.worldGeoJson);
+  if (cachedGeometry) {
+    return cachedGeometry;
+  }
+
   const baseGeometry = cloneGeometry({
     type: manualGeometry?.type,
     coordinates: manualGeometry?.coordinates,
@@ -595,48 +799,22 @@ function resolveManualGeometry(manualGeometry, datasets = {}) {
     return baseGeometry;
   }
 
-  const landGeometries = resolveLandClipGeometries(
-    manualGeometry.landClipPoints,
+  const landGeometries = dedupePolygonGeometries([
+    ...(manualGeometry.excludeLand
+      ? findIntersectingLandGeometries(baseGeometry, datasets.worldGeoJson)
+      : []),
+    ...resolveLandClipGeometries(manualGeometry.landClipPoints, datasets.worldGeoJson),
+  ]);
+  const resolvedGeometry = landGeometries.length > 0
+    ? subtractPolygonGeometries(baseGeometry, landGeometries)
+    : baseGeometry;
+
+  setCachedManualGeometry(
+    manualGeometry,
     datasets.worldGeoJson,
+    resolvedGeometry,
   );
-  if (landGeometries.length === 0) {
-    return baseGeometry;
-  }
-
-  const polygonSets = extractPolygonCoordinateSets(baseGeometry);
-
-  polygonSets.forEach((polygon) => {
-    const outerRing = polygon?.[0];
-    if (!Array.isArray(outerRing) || outerRing.length < 4) {
-      return;
-    }
-
-    const outerIsCounterClockwise = computeRingSignedArea(outerRing) >= 0;
-    const holeKeys = new Set(
-      (polygon.slice(1) ?? []).map((hole) => JSON.stringify(closeCoordinateRing(hole))),
-    );
-
-    landGeometries.forEach((landGeometry) => {
-      extractPolygonCoordinateSets(landGeometry).forEach((landPolygon) => {
-        const landOuterRing = landPolygon?.[0];
-        const clippedHole = clipRingToConvexRing(landOuterRing, outerRing);
-        if (!clippedHole) {
-          return;
-        }
-
-        const orientedHole = orientRing(clippedHole, outerIsCounterClockwise);
-        const holeKey = JSON.stringify(orientedHole);
-        if (holeKeys.has(holeKey)) {
-          return;
-        }
-
-        polygon.push(orientedHole);
-        holeKeys.add(holeKey);
-      });
-    });
-  });
-
-  return baseGeometry;
+  return cloneGeometry(resolvedGeometry);
 }
 
 function buildCircleGeometry(target, screenRadiusPx) {

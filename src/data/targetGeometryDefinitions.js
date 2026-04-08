@@ -48,6 +48,7 @@ const polygon = (coordinates, options = {}) => ({
     orientRing(coordinates, false),
     ...((options.holes ?? []).map((hole) => orientRing(hole, true))),
   ],
+  ...(options.excludeLand ? { excludeLand: true } : {}),
   ...(options.landClipPoints
     ? { landClipPoints: options.landClipPoints.map((point) => [...point]) }
     : {}),
@@ -64,6 +65,7 @@ export const TARGET_GEOMETRY_DEFINITIONS = Object.freeze({
       [-10.8, 56.2],
     ],
     {
+      excludeLand: true,
       landClipPoints: [
         [-2.5, 54.5],  // Great Britain
         [-8.0, 53.3],  // Ireland
@@ -86,6 +88,7 @@ export const TARGET_GEOMETRY_DEFINITIONS = Object.freeze({
       [8.8, 56.0],
     ],
     {
+      excludeLand: true,
       landClipPoints: [
         [11.0, 55.7],  // Denmark
         [18.6, 60.1],  // Sweden
@@ -99,49 +102,67 @@ export const TARGET_GEOMETRY_DEFINITIONS = Object.freeze({
       ],
     },
   ),
-  'water-english-channel': polygon([
-    [-6.5, 48.5],
-    [2.4, 48.5],
-    [2.2, 51.4],
-    [-4.4, 51.6],
-    [-6.7, 49.8],
-  ]),
-  'water-mediterranean': polygon([
-    [-5.8, 35.0],
-    [7.5, 36.0],
-    [16.0, 36.0],
-    [25.8, 34.5],
-    [36.5, 32.0],
-    [36.5, 40.8],
-    [14.5, 45.5],
-    [0.0, 43.8],
-    [-5.8, 40.0],
-  ]),
-  'water-black-sea': polygon([
-    [27.0, 40.6],
-    [41.8, 40.6],
-    [41.5, 47.5],
-    [28.0, 47.0],
-    [27.0, 43.0],
-  ]),
-  'water-adriatic-sea': polygon([
-    [12.1, 39.2],
-    [20.2, 39.2],
-    [19.0, 45.8],
-    [12.3, 45.8],
-  ]),
-  'water-aegean-sea': polygon([
-    [22.0, 35.0],
-    [29.8, 35.0],
-    [29.8, 41.8],
-    [22.0, 41.8],
-  ]),
-  'water-bay-of-biscay': polygon([
-    [-10.6, 42.4],
-    [-1.4, 42.4],
-    [-0.6, 48.5],
-    [-8.8, 48.8],
-  ]),
+  'water-english-channel': polygon(
+    [
+      [-6.5, 48.5],
+      [2.4, 48.5],
+      [2.2, 51.4],
+      [-4.4, 51.6],
+      [-6.7, 49.8],
+    ],
+    { excludeLand: true },
+  ),
+  'water-mediterranean': polygon(
+    [
+      [-5.8, 35.0],
+      [7.5, 36.0],
+      [16.0, 36.0],
+      [25.8, 34.5],
+      [36.5, 32.0],
+      [36.5, 40.8],
+      [14.5, 45.5],
+      [0.0, 43.8],
+      [-5.8, 40.0],
+    ],
+    { excludeLand: true },
+  ),
+  'water-black-sea': polygon(
+    [
+      [27.0, 40.6],
+      [41.8, 40.6],
+      [41.5, 47.5],
+      [28.0, 47.0],
+      [27.0, 43.0],
+    ],
+    { excludeLand: true },
+  ),
+  'water-adriatic-sea': polygon(
+    [
+      [12.1, 39.2],
+      [20.2, 39.2],
+      [19.0, 45.8],
+      [12.3, 45.8],
+    ],
+    { excludeLand: true },
+  ),
+  'water-aegean-sea': polygon(
+    [
+      [22.0, 35.0],
+      [29.8, 35.0],
+      [29.8, 41.8],
+      [22.0, 41.8],
+    ],
+    { excludeLand: true },
+  ),
+  'water-bay-of-biscay': polygon(
+    [
+      [-10.6, 42.4],
+      [-1.4, 42.4],
+      [-0.6, 48.5],
+      [-8.8, 48.8],
+    ],
+    { excludeLand: true },
+  ),
   'water-atlantic-ocean': polygon(
     [
       [-60.0, 41.0],
@@ -151,6 +172,7 @@ export const TARGET_GEOMETRY_DEFINITIONS = Object.freeze({
       [-60.0, 66.0],
     ],
     {
+      excludeLand: true,
       landClipPoints: [
         [-19.0, 64.9], // Iceland
         [-8.2, 53.3],  // Ireland
@@ -161,12 +183,15 @@ export const TARGET_GEOMETRY_DEFINITIONS = Object.freeze({
       ],
     },
   ),
-  'water-arctic-ocean': polygon([
-    [-10.0, 71.0],
-    [33.0, 71.0],
-    [33.0, 78.5],
-    [-10.0, 78.5],
-  ]),
+  'water-arctic-ocean': polygon(
+    [
+      [-10.0, 71.0],
+      [33.0, 71.0],
+      [33.0, 78.5],
+      [-10.0, 78.5],
+    ],
+    { excludeLand: true },
+  ),
   'area-scandinavia': polygon([
     [4.0, 55.0],
     [13.0, 54.7],

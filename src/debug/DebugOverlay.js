@@ -7,11 +7,11 @@ const HINT_DEPTH = WORLD_DEPTHS.QUIZ_TARGET - 0.1;
 const CITY_SCREEN_RADIUS = 6;
 const DIM_COLOR = 0x0f172a;
 const DIM_ALPHA = 0.35;
-const OUTLINE_COLOR = 0xff8c00;
-const OUTLINE_ALPHA = 0.9;
+const OUTLINE_COLOR = 0x2f6b3d;
+const OUTLINE_ALPHA = 0.85;
 const OUTLINE_SCREEN_WIDTH = 2;
-const CITY_COLOR = 0xff8c00;
-const CITY_ALPHA = 0.7;
+const CITY_COLOR = OUTLINE_COLOR;
+const CITY_ALPHA = 0.65;
 
 function drawDimmedNonQuizPolygons(graphics, geometry, quizCountryTargets, projectFn) {
   const polygons =
@@ -153,6 +153,7 @@ export default class DebugOverlay {
       if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) continue;
 
       hintGraphics.fillCircle(pt.x, pt.y, cityRadius);
+      hintGraphics.strokeCircle(pt.x, pt.y, cityRadius);
     }
   }
 
