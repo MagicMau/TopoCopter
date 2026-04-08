@@ -54,6 +54,12 @@ export const CAMERA_LIMITS = Object.freeze({
   DOUBLE_TAP_ZOOM_FACTOR: 1.6,
 });
 
+export const PROXIMITY_ZOOM = Object.freeze({
+  START_DISTANCE: 400, // world units — zoom starts increasing inside this radius
+  MAX_MULTIPLIER: 1.6, // max zoom = base * 1.6
+  LERP: 0.05,          // per-frame blend speed
+});
+
 export const CAMERA_FOLLOW = Object.freeze({
   FOLLOW_LAG: 0.12,
   FOLLOW_LERP: 0.12,

@@ -35,14 +35,17 @@ import {
 } from '../core/cameraMath.js';
 import {
   CAMERA_FOLLOW,
+  CAMERA_LIMITS,
   HELICOPTER_STYLE,
   MARKER_STYLE,
   MOVEMENT_STYLE,
+  PROXIMITY_ZOOM,
   QUIZ_TARGET_STYLE,
   ROTATION_STYLE,
   WORLD_DEPTHS,
   WORLD_LAYOUT,
 } from '../ui/styles.js';
+import DebugOverlay from '../debug/DebugOverlay.js';
 
 const MARKER_TARGET_PADDING_PX = 6;
 const COMMAND_ARRIVAL_RADIUS_PX = 4;
@@ -98,6 +101,12 @@ export default class HelicopterScene extends MapScene {
 
     this._audioManager       = null;
     this._bootstrapQuizSetData = undefined;
+
+    // Proximity zoom state
+    this._proximityBaseZoom   = null; // manual/base zoom level
+    this._proximityLastSetZoom = null; // zoom we last applied via proximity logic
+
+    this._debugOverlay = null;
   }
 
   createWorldContent() {
@@ -152,6 +161,11 @@ export default class HelicopterScene extends MapScene {
     this.setCameraFollowPaused(false);
 
     this._startQuizSystems();
+
+    this._debugOverlay = new DebugOverlay(this);
+    if (this._debugOverlay.enabled) {
+      this._debugOverlay.render(this._getAllQuizTargets());
+    }
 
     // Fixed framing: permanently lock camera follow so the framing holds.
     // Also recompute and reapply the framing using the actual camera viewport
@@ -235,6 +249,12 @@ export default class HelicopterScene extends MapScene {
     this._quizSetTargets     = null;
     this._framingState       = null;
     this._bootstrapQuizSetData = undefined;
+
+    this._proximityBaseZoom   = null;
+    this._proximityLastSetZoom = null;
+
+    this._debugOverlay?.destroy();
+    this._debugOverlay = null;
 
     this._audioManager?.stopRotorLoop();
     this._audioManager = null;
@@ -505,6 +525,14 @@ export default class HelicopterScene extends MapScene {
       lakesGeoJson: this.cache?.json?.get(DATA_CACHE_KEYS.WORLD_MAJOR_LAKES),
       riversGeoJson: this.cache?.json?.get(DATA_CACHE_KEYS.WORLD_MAJOR_RIVERS),
     };
+  }
+
+  _getAllQuizTargets() {
+    return (
+      this._quizController?.level?.fixedTargets ??
+      this._quizController?._sequence ??
+      []
+    );
   }
 
   resolveTargetReveal(target = this._activeTarget) {
@@ -1082,6 +1110,8 @@ export default class HelicopterScene extends MapScene {
 
     this._hoverDetector?.reset();
 
+    this._debugOverlay?.render(this._getAllQuizTargets());
+
     const levelName = this._quizController?.level?.name ?? '';
     const isSpelling = target.questionMode === QUESTION_MODE.SPELLING;
 
@@ -1382,6 +1412,7 @@ export default class HelicopterScene extends MapScene {
       this.cameraController?.update?.(delta);
     }
 
+    this._updateProximityZoom();
     this._updateQuiz(delta);
   }
 
@@ -1394,6 +1425,51 @@ export default class HelicopterScene extends MapScene {
     const maxSpeed = this._quizController?.level?.helicopterSpeed ?? MOVEMENT_STYLE.MAX_SPEED;
     const profile = interpolateRotorProfile(speed, maxSpeed);
     this._audioManager.setRotorProfile(profile);
+  }
+
+  _updateProximityZoom() {
+    const camera = this.cameras.main;
+    if (!camera || this._fixedFramingActive) return;
+
+    const currentZoom = camera.zoom;
+
+    // Detect manual zoom: if camera.zoom differs from what proximity last set,
+    // the user (or another system) changed it → adopt it as the new base.
+    if (
+      this._proximityBaseZoom === null ||
+      (this._proximityLastSetZoom !== null &&
+        Math.abs(currentZoom - this._proximityLastSetZoom) > 0.0001)
+    ) {
+      this._proximityBaseZoom = currentZoom;
+    }
+
+    const baseZoom = this._proximityBaseZoom;
+    let targetZoom = baseZoom;
+
+    if (this._activeTargetPoint) {
+      const pos = this.helicopter?.getPosition?.();
+      if (pos) {
+        const heliX = Array.isArray(pos) ? pos[0] : pos.x;
+        const heliY = Array.isArray(pos) ? pos[1] : pos.y;
+        if (Number.isFinite(heliX) && Number.isFinite(heliY)) {
+          const dx = heliX - this._activeTargetPoint.x;
+          const dy = heliY - this._activeTargetPoint.y;
+          const dist = Math.hypot(dx, dy);
+          const t = 1 - Math.min(dist / PROXIMITY_ZOOM.START_DISTANCE, 1);
+          const maxZoom = Math.min(
+            baseZoom * PROXIMITY_ZOOM.MAX_MULTIPLIER,
+            CAMERA_LIMITS.MAX_ZOOM,
+          );
+          targetZoom = baseZoom + (maxZoom - baseZoom) * t;
+        }
+      }
+    }
+
+    const nextZoom = currentZoom + (targetZoom - currentZoom) * PROXIMITY_ZOOM.LERP;
+    if (Math.abs(nextZoom - currentZoom) > 0.00001) {
+      camera.zoom = nextZoom;
+    }
+    this._proximityLastSetZoom = camera.zoom;
   }
 
   _updateQuiz(delta) {
