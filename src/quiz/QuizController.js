@@ -15,6 +15,7 @@
  *   qc.advance();   // call when current target is found
  */
 import { decorateSequence, PLAY_MODE } from './questionModes.js';
+import { avoidConsecutiveOverlaps } from './overlapUtils.js';
 
 export { PLAY_MODE };
 
@@ -27,6 +28,8 @@ export default class QuizController {
     this._onScoreUpdate  = options.onScoreUpdate  ?? null;
     this._onComplete     = options.onComplete     ?? null;
     this._playMode       = options.playMode       ?? null;
+    this._projectFn      = options.projectFn      ?? null;
+    this._datasets       = options.datasets       ?? {};
 
     this.level         = null;
     this._sequence     = [];
@@ -107,6 +110,8 @@ export default class QuizController {
     const shuffled = this.shuffle(pool);
     const count    = this.level?.targetCount ?? shuffled.length;
     const sliced   = shuffled.slice(0, count);
+
+    avoidConsecutiveOverlaps(sliced, this._projectFn, this._datasets);
 
     this._sequence     = decorateSequence(sliced, this._playMode);
     this._currentIndex = 0;
