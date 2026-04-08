@@ -159,7 +159,7 @@ describe('HelicopterScene.getInputControllerOptions', () => {
 
     const options = scene.getInputControllerOptions({});
 
-    expect(options.getZoomAnchor(150, 260)).toEqual({ x: 150, y: 260 });
+    expect(options.getZoomAnchor(150, 260)).toEqual({ screenX: 150, screenY: 260 });
   });
 });
 

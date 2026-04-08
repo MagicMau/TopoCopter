@@ -326,8 +326,8 @@ export default class HelicopterScene extends MapScene {
 
     if (this.freeLookActive) {
       return {
-        x: fallbackCanvasX,
-        y: fallbackCanvasY,
+        screenX: fallbackCanvasX,
+        screenY: fallbackCanvasY,
       };
     }
 
