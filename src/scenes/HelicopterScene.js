@@ -30,6 +30,7 @@ import {
   summarizeTargets,
 } from '../core/runtimeDebug.js';
 import {
+  getCameraCanvasPoint,
   getCameraScrollForWorldCenter,
   setCameraScroll,
 } from '../core/cameraMath.js';
@@ -303,6 +304,10 @@ export default class HelicopterScene extends MapScene {
       getZoomAnchor: (mouseCanvasX, mouseCanvasY) => {
         if (this.freeLookActive) {
           return { x: mouseCanvasX, y: mouseCanvasY };
+        }
+        const heliPos = this.helicopterPosition;
+        if (heliPos) {
+          return getCameraCanvasPoint(this.cameras.main, heliPos.x, heliPos.y);
         }
         return {
           x: this.cameras.main.width * 0.5,

@@ -119,6 +119,22 @@ export function getCameraScrollForWorldCenter(camera, centerX, centerY, output =
   return output;
 }
 
+export function getCameraCanvasPoint(
+  camera,
+  worldX,
+  worldY,
+  zoom = camera?.zoom,
+  output = {},
+) {
+  const metrics = getCameraViewportMetrics(camera, zoom);
+  const visibleRect = getCameraVisibleWorldRect(camera, zoom);
+
+  output.x = metrics.x + (toFiniteNumber(worldX, 0) - visibleRect.left) * metrics.zoom;
+  output.y = metrics.y + (toFiniteNumber(worldY, 0) - visibleRect.top) * metrics.zoom;
+
+  return output;
+}
+
 export function getCameraScrollForVisibleWorldOrigin(
   camera,
   left,
