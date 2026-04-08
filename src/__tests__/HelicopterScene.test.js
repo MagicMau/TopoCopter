@@ -119,9 +119,9 @@ describe('HelicopterScene screen-space helpers', () => {
     const zoomedInScale = scene.helicopter.setVisualScale.mock.lastCall[0];
     const zoomedInScreenWidth = 80 * zoomedInScale * scene.cameras.main.zoom;
 
-    expect(farOutScreenWidth).toBeLessThan(18);
+    expect(farOutScreenWidth).toBeLessThan(36);
     expect(zoomedInScreenWidth).toBeGreaterThan(farOutScreenWidth);
-    expect(zoomedInScreenWidth).toBeLessThan(45);
+    expect(zoomedInScreenWidth).toBeLessThan(90);
   });
 });
 

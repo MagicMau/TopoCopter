@@ -1,7 +1,7 @@
 const MAP_CONTROLS_COPY =
-  'Sleep om te bewegen\nKnijp, dubbeltik of gebruik het scrollwiel om te zoomen';
+  "Sleep om te bewegen\nKnijp, dubbeltik of gebruik het scrollwiel om te zoomen";
 const HELICOPTER_CONTROLS_COPY =
-  'Tik of klik om te vliegen\nHoud ingedrukt of sleep om te sturen\nRechtssleep, knijp, dubbeltik of gebruik het scrollwiel om te bewegen en zoomen';
+  "Tik of klik om te vliegen\nHoud ingedrukt of sleep om te sturen\nRechtssleep, knijp, dubbeltik of gebruik het scrollwiel om te bewegen en zoomen";
 
 export const PALETTE = Object.freeze({
   water: 0xf4f7fb,
@@ -24,8 +24,8 @@ export const PALETTE = Object.freeze({
   markerRing: 0xffffff,
   reliefTint: 0xf3f7fa,
   reliefTintHighZoom: 0xdeebf2,
-  overlayBackground: 'rgba(15, 23, 42, 0.72)',
-  overlayText: '#f8fafc',
+  overlayBackground: "rgba(15, 23, 42, 0.72)",
+  overlayText: "#f8fafc",
 });
 
 export const WORLD_LAYOUT = Object.freeze({
@@ -75,8 +75,8 @@ export const MARKER_STYLE = Object.freeze({
 export const HELICOPTER_STYLE = Object.freeze({
   DEPTH: WORLD_DEPTHS.HELICOPTER,
   REFERENCE_SCREEN_WIDTH: 64,
-  MIN_SCREEN_WIDTH_FACTOR: 0.22,
-  MAX_SCREEN_WIDTH_FACTOR: 0.56,
+  MIN_SCREEN_WIDTH_FACTOR: 0.44,
+  MAX_SCREEN_WIDTH_FACTOR: 1,
   ZOOM_GROWTH_MULTIPLIER: 12,
   ZOOM_GROWTH_CURVE: 0.85,
   MIN_SCALE: 0.0005,
@@ -156,7 +156,7 @@ export const OVERLAY_STYLE = Object.freeze({
   MAX_WIDTH: 320,
   FONT_FAMILY:
     'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  FONT_SIZE: '14px',
+  FONT_SIZE: "14px",
   LINE_SPACING: 4,
 });
 
