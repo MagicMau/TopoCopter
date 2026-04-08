@@ -12,7 +12,7 @@
     { "id": "country-poland",        "name": "Polen",            "lat": 51.9194, "lon": 19.1451 },
     { "id": "country-czech",         "name": "Tsjechië",         "lat": 49.8175, "lon": 15.4730 },
     { "id": "country-hungary",       "name": "Hongarije",        "lat": 47.1625, "lon": 19.5033 },
-    { "id": "country-sweden",        "name": "Zweden",           "lat": 60.1282, "lon": 18.6435 },
+    { "id": "country-sweden",        "name": "Zweden",           "lat": 63.0000, "lon": 16.0000 },
     { "id": "country-norway",        "name": "Noorwegen",        "lat": 60.4720, "lon":  8.4689 },
     { "id": "country-denmark",       "name": "Denemarken",       "lat": 56.2639, "lon":  9.5018 },
     { "id": "country-finland",       "name": "Finland",          "lat": 61.9241, "lon": 25.7482 },
