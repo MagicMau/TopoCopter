@@ -10,6 +10,7 @@ import {
   getWindowMetrics,
 } from './runtimeDebug.js';
 import { getAudioManager } from '../audio/AudioManager.js';
+import { isWebKitBrowser } from './browser.js';
 
 const DEFAULT_VIEWPORT = {
   width: 390,
@@ -43,6 +44,7 @@ const readResolution = () => {
 
 const initialViewport = readInitialViewport();
 const initialResolution = readResolution();
+const disablePhaserAudio = isWebKitBrowser();
 
 debugLog('CONFIG', 'Resolved initial game viewport', {
   initialViewport,
@@ -81,6 +83,10 @@ const gameConfig = {
       preventDefaultUp: true,
       preventDefaultWheel: true
     }
+  },
+  // Phaser audio is unused; disable its sound manager on WebKit to avoid extra setup.
+  audio: {
+    noAudio: disablePhaserAudio,
   },
   render: {
     antialias: true,
