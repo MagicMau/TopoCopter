@@ -50,7 +50,7 @@ describe('DebugOverlay', () => {
     expect(scene.registerWorldObject).toHaveBeenCalledTimes(2);
   });
 
-  it('dims non-target country polygons and uses dark-green hint markers', () => {
+  it('keeps quiz countries bright and only draws city dots for hints', () => {
     const createdGraphics = [];
     const worldGeoJson = {
       type: 'FeatureCollection',
@@ -75,6 +75,20 @@ describe('DebugOverlay', () => {
                 [20, 20],
               ]],
             ],
+          },
+          properties: {},
+        },
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [40, 40],
+              [50, 40],
+              [50, 50],
+              [40, 50],
+              [40, 40],
+            ]],
           },
           properties: {},
         },
@@ -111,10 +125,10 @@ describe('DebugOverlay', () => {
     const [dimGraphics, hintGraphics] = createdGraphics;
     expect(dimGraphics.fillStyle).toHaveBeenCalledWith(0x0f172a, 0.35);
     expect(dimGraphics.fillPath).toHaveBeenCalledTimes(1);
-    expect(hintGraphics.lineStyle).toHaveBeenCalledWith(2, 0x2f6b3d, 0.85);
-    expect(hintGraphics.strokePath).toHaveBeenCalledTimes(1);
     expect(hintGraphics.fillStyle).toHaveBeenCalledWith(0x2f6b3d, 0.65);
     expect(hintGraphics.fillCircle).toHaveBeenCalledWith(150, 150, 6);
-    expect(hintGraphics.strokeCircle).toHaveBeenCalledWith(150, 150, 6);
+    expect(hintGraphics.lineStyle).not.toHaveBeenCalled();
+    expect(hintGraphics.strokePath).not.toHaveBeenCalled();
+    expect(hintGraphics.strokeCircle).not.toHaveBeenCalled();
   });
 });
