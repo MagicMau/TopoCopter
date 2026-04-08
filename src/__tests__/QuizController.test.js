@@ -229,6 +229,43 @@ describe('QuizController', () => {
       qc.start('level-1');
       expect(qc.getProgress().score).toBe(0);
     });
+
+    it('reorders overlapping area and city targets when geometry inputs are provided', () => {
+      const qc = new QuizController(
+        {
+          areas: [
+            { id: 'area-scandinavia', name: 'Scandinavië', lat: 63.5, lon: 17 },
+          ],
+          cities: [
+            { id: 'city-stockholm', name: 'Stockholm', lat: 59.3293, lon: 18.0686 },
+            { id: 'city-amsterdam', name: 'Amsterdam', lat: 52.3676, lon: 4.9041 },
+          ],
+        },
+        {
+          default: 'level-1',
+          levels: [
+            {
+              id: 'level-1',
+              categories: ['areas', 'cities'],
+              targetCount: 3,
+            },
+          ],
+        },
+        {
+          projectFn: (lat, lon) => ({ x: lon * 100, y: lat * 100 }),
+          datasets: {},
+        },
+      );
+      qc.shuffle = vi.fn((items) => [...items]);
+
+      qc.start('level-1');
+
+      expect(qc._sequence.map((target) => target.id)).toEqual([
+        'area-scandinavia',
+        'city-amsterdam',
+        'city-stockholm',
+      ]);
+    });
   });
 
   describe('getCurrentTarget', () => {

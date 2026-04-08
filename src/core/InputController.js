@@ -104,11 +104,10 @@ export default class InputController {
           pointer,
           this.pointerCanvasPoint,
         );
-        this._activeZoomDebugSource = 'double-tap';
-        this.zoomTo(
+        this.applyZoom(
           this.camera.zoom * this.doubleTapZoomFactor,
-          canvasPoint.x,
-          canvasPoint.y,
+          this.resolveZoomFocus(canvasPoint.x, canvasPoint.y),
+          'double-tap',
         );
       }
       return;
@@ -198,11 +197,12 @@ export default class InputController {
     }
   }
 
-  handleWheel(pointer, currentlyOver, deltaX, deltaY, deltaZ) {
+  handleWheel(pointer, currentlyOver, deltaX, deltaY, deltaZ, event) {
     void currentlyOver;
     void deltaX;
     void deltaZ;
 
+    event?.preventDefault?.();
     pointer.event?.preventDefault?.();
 
     if (this.zoomLocked) {
@@ -214,19 +214,11 @@ export default class InputController {
       this.pointerCanvasPoint,
     );
     const zoomScale = Math.exp(-(Number(deltaY) || 0) * this.wheelZoomSpeed);
-
-    let anchorX = canvasPoint.x;
-    let anchorY = canvasPoint.y;
-    if (this.getZoomAnchor) {
-      const anchor = this.getZoomAnchor(canvasPoint.x, canvasPoint.y);
-      if (anchor) {
-        anchorX = anchor.x;
-        anchorY = anchor.y;
-      }
-    }
-
-    this._activeZoomDebugSource = 'wheel';
-    this.zoomTo(this.camera.zoom * zoomScale, anchorX, anchorY);
+    this.applyZoom(
+      this.camera.zoom * zoomScale,
+      this.resolveZoomFocus(canvasPoint.x, canvasPoint.y),
+      'wheel',
+    );
   }
 
   beginDrag(pointer) {
@@ -323,13 +315,15 @@ export default class InputController {
     const pinchMidX = (pointerA.x + pointerB.x) * 0.5;
     const pinchMidY = (pointerA.y + pointerB.y) * 0.5;
     const zoomFactor = pinchDistance / this.lastPinchDistance;
-    this._activeZoomDebugSource = 'pinch';
-    this.zoomTo(
+    this.applyZoom(
       this.camera.zoom * zoomFactor,
-      pinchMidX,
-      pinchMidY,
-      this.lastPinchMidX,
-      this.lastPinchMidY,
+      this.resolveZoomFocus(
+        pinchMidX,
+        pinchMidY,
+        this.lastPinchMidX,
+        this.lastPinchMidY,
+      ),
+      'pinch',
     );
 
     this.lastPinchDistance = pinchDistance;
@@ -413,6 +407,64 @@ export default class InputController {
       this.camera.zoom,
       output,
     );
+  }
+
+  resolveZoomFocus(
+    screenX,
+    screenY,
+    anchorX = screenX,
+    anchorY = screenY,
+  ) {
+    const focus = {
+      screenX,
+      screenY,
+      anchorX,
+      anchorY,
+    };
+
+    if (!this.getZoomAnchor) {
+      return focus;
+    }
+
+    const resolvedFocus = this.getZoomAnchor(screenX, screenY);
+    if (!resolvedFocus || typeof resolvedFocus !== 'object') {
+      return focus;
+    }
+
+    if (Number.isFinite(resolvedFocus.x)) {
+      focus.screenX = resolvedFocus.x;
+      focus.anchorX = resolvedFocus.x;
+    }
+    if (Number.isFinite(resolvedFocus.y)) {
+      focus.screenY = resolvedFocus.y;
+      focus.anchorY = resolvedFocus.y;
+    }
+    if (Number.isFinite(resolvedFocus.screenX)) {
+      focus.screenX = resolvedFocus.screenX;
+    }
+    if (Number.isFinite(resolvedFocus.screenY)) {
+      focus.screenY = resolvedFocus.screenY;
+    }
+    if (Number.isFinite(resolvedFocus.anchorX)) {
+      focus.anchorX = resolvedFocus.anchorX;
+    }
+    if (Number.isFinite(resolvedFocus.anchorY)) {
+      focus.anchorY = resolvedFocus.anchorY;
+    }
+
+    return focus;
+  }
+
+  applyZoom(zoom, focus = {}, source = 'direct') {
+    const defaultScreenX = (this.camera?.x ?? 0) + (this.camera?.width ?? 0) * 0.5;
+    const defaultScreenY = (this.camera?.y ?? 0) + (this.camera?.height ?? 0) * 0.5;
+    const screenX = Number.isFinite(focus.screenX) ? focus.screenX : defaultScreenX;
+    const screenY = Number.isFinite(focus.screenY) ? focus.screenY : defaultScreenY;
+    const anchorX = Number.isFinite(focus.anchorX) ? focus.anchorX : screenX;
+    const anchorY = Number.isFinite(focus.anchorY) ? focus.anchorY : screenY;
+
+    this._activeZoomDebugSource = source;
+    this.zoomTo(zoom, screenX, screenY, anchorX, anchorY);
   }
 
   zoomTo(

@@ -2,7 +2,8 @@ import { WORLD_DEPTHS } from '../ui/styles.js';
 import { geometryContainsPoint, resolveProjectedTargetGeometry } from '../quiz/targetGeometry.js';
 import { DATA_CACHE_KEYS } from '../scenes/PreloadScene.js';
 
-const DEBUG_DEPTH = WORLD_DEPTHS.OVERLAY - 1;
+const DIM_DEPTH = WORLD_DEPTHS.DETAIL_MAP + 0.1;
+const HINT_DEPTH = WORLD_DEPTHS.QUIZ_TARGET - 0.1;
 const CITY_SCREEN_RADIUS = 6;
 const DIM_COLOR = 0x0f172a;
 const DIM_ALPHA = 0.35;
@@ -12,23 +13,6 @@ const OUTLINE_SCREEN_WIDTH = 2;
 const CITY_COLOR = 0xff8c00;
 const CITY_ALPHA = 0.7;
 
-function isDebugMode() {
-  try {
-    if (typeof window === 'undefined') return false;
-    if (new URLSearchParams(window.location.search).get('debug') === '1') return true;
-    if (window.localStorage?.getItem('debug') === '1') return true;
-  } catch (_) {
-    // non-browser env
-  }
-  return false;
-}
-
-/**
- * Dim all sub-polygons in a GeoJSON geometry that do NOT contain any quiz
- * country target lat/lon.  For MultiPolygon features (e.g. France), only the
- * sub-polygon(s) that actually contain the quiz target are left undimmed;
- * distant overseas territories are dimmed as expected.
- */
 function drawDimmedNonQuizPolygons(graphics, geometry, quizCountryTargets, projectFn) {
   const polygons =
     geometry.type === 'MultiPolygon'
@@ -41,8 +25,8 @@ function drawDimmedNonQuizPolygons(graphics, geometry, quizCountryTargets, proje
     const outerRing = polygon?.[0];
     if (!outerRing || outerRing.length < 3) continue;
 
-    const isQuizTarget = quizCountryTargets.some((t) =>
-      geometryContainsPoint({ type: 'Polygon', coordinates: polygon }, t.lon, t.lat));
+    const isQuizTarget = quizCountryTargets.some((target) =>
+      geometryContainsPoint({ type: 'Polygon', coordinates: polygon }, target.lon, target.lat));
 
     if (isQuizTarget) continue;
 
@@ -65,18 +49,34 @@ function drawDimmedNonQuizPolygons(graphics, geometry, quizCountryTargets, proje
   }
 }
 
+function traceProjectedRing(graphics, ring) {
+  if (!ring || ring.length < 6) {
+    return false;
+  }
+
+  graphics.beginPath();
+  graphics.moveTo(ring[0], ring[1]);
+  for (let i = 2; i < ring.length; i += 2) {
+    graphics.lineTo(ring[i], ring[i + 1]);
+  }
+  graphics.closePath();
+  return true;
+}
+
 export default class DebugOverlay {
   constructor(scene) {
     this._scene = scene;
-    this._graphics = null;
-    this._enabled = isDebugMode();
+    this._enabled = true;
+    this._dimGraphics = scene.add.graphics();
+    this._hintGraphics = scene.add.graphics();
 
-    if (!this._enabled) return;
+    this._dimGraphics.setDepth(DIM_DEPTH);
+    this._dimGraphics.setScrollFactor(1);
+    this._hintGraphics.setDepth(HINT_DEPTH);
+    this._hintGraphics.setScrollFactor(1);
 
-    this._graphics = scene.add.graphics();
-    this._graphics.setDepth(DEBUG_DEPTH);
-    this._graphics.setScrollFactor(1);
-    scene.registerWorldObject(this._graphics);
+    scene.registerWorldObject(this._dimGraphics);
+    scene.registerWorldObject(this._hintGraphics);
   }
 
   get enabled() {
@@ -84,14 +84,14 @@ export default class DebugOverlay {
   }
 
   render(quizTargets) {
-    if (!this._enabled || !this._graphics) return;
-
-    const scene = this._scene;
-    const graphics = this._graphics;
-    graphics.clear();
+    const dimGraphics = this._dimGraphics;
+    const hintGraphics = this._hintGraphics;
+    dimGraphics?.clear();
+    hintGraphics?.clear();
 
     if (!quizTargets || quizTargets.length === 0) return;
 
+    const scene = this._scene;
     const worldGeoJson = scene.cache?.json?.get(DATA_CACHE_KEYS.WORLD_GEOJSON);
     const lakesGeoJson = scene.cache?.json?.get(DATA_CACHE_KEYS.WORLD_MAJOR_LAKES);
     const riversGeoJson = scene.cache?.json?.get(DATA_CACHE_KEYS.WORLD_MAJOR_RIVERS);
@@ -99,24 +99,26 @@ export default class DebugOverlay {
     const projectFn = (lat, lon) => scene.projectLatLon(lat, lon);
     const datasets = { worldGeoJson, lakesGeoJson, riversGeoJson };
 
-    // 1. Dim non-quiz country shapes
-    if (worldGeoJson) {
+    if (worldGeoJson && dimGraphics) {
       const quizCountryTargets = quizTargets.filter(
-        (t) => (t.category ?? '').toLowerCase() === 'countries',
+        (target) => (target.category ?? '').toLowerCase() === 'countries',
       );
 
-      graphics.fillStyle(DIM_COLOR, DIM_ALPHA);
+      dimGraphics.fillStyle(DIM_COLOR, DIM_ALPHA);
 
       for (const feature of (worldGeoJson.features ?? [])) {
         const geometry = feature.geometry;
         if (!geometry) continue;
 
-        drawDimmedNonQuizPolygons(graphics, geometry, quizCountryTargets, projectFn);
+        drawDimmedNonQuizPolygons(dimGraphics, geometry, quizCountryTargets, projectFn);
       }
     }
 
-    // 2. Outline quiz target polygons (countries + water polygons/lines)
-    graphics.lineStyle(OUTLINE_SCREEN_WIDTH / zoom, OUTLINE_COLOR, OUTLINE_ALPHA);
+    if (!hintGraphics) {
+      return;
+    }
+
+    hintGraphics.lineStyle(OUTLINE_SCREEN_WIDTH / zoom, OUTLINE_COLOR, OUTLINE_ALPHA);
 
     for (const target of quizTargets) {
       const category = (target.category ?? '').toLowerCase();
@@ -127,32 +129,21 @@ export default class DebugOverlay {
 
       if (geom.kind === 'polygon') {
         for (const polygon of geom.polygons) {
-          const outer = polygon[0];
-          if (!outer || outer.length < 4) continue;
-          graphics.beginPath();
-          graphics.moveTo(outer[0], outer[1]);
-          for (let i = 2; i < outer.length; i += 2) {
-            graphics.lineTo(outer[i], outer[i + 1]);
+          for (const ring of polygon) {
+            if (!traceProjectedRing(hintGraphics, ring)) continue;
+            hintGraphics.strokePath();
           }
-          graphics.closePath();
-          graphics.strokePath();
         }
       } else if (geom.kind === 'line') {
         for (const line of geom.lines) {
-          if (line.length < 4) continue;
-          graphics.beginPath();
-          graphics.moveTo(line[0], line[1]);
-          for (let i = 2; i < line.length; i += 2) {
-            graphics.lineTo(line[i], line[i + 1]);
-          }
-          graphics.strokePath();
+          if (!traceProjectedRing(hintGraphics, line)) continue;
+          hintGraphics.strokePath();
         }
       }
     }
 
-    // 3. City target markers (filled circle, ~6px screen-space)
     const cityRadius = CITY_SCREEN_RADIUS / zoom;
-    graphics.fillStyle(CITY_COLOR, CITY_ALPHA);
+    hintGraphics.fillStyle(CITY_COLOR, CITY_ALPHA);
 
     for (const target of quizTargets) {
       const category = (target.category ?? '').toLowerCase();
@@ -161,12 +152,14 @@ export default class DebugOverlay {
       const pt = projectFn(target.lat, target.lon);
       if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) continue;
 
-      graphics.fillCircle(pt.x, pt.y, cityRadius);
+      hintGraphics.fillCircle(pt.x, pt.y, cityRadius);
     }
   }
 
   destroy() {
-    this._graphics?.destroy();
-    this._graphics = null;
+    this._dimGraphics?.destroy();
+    this._hintGraphics?.destroy();
+    this._dimGraphics = null;
+    this._hintGraphics = null;
   }
 }

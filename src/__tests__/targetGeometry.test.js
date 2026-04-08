@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   computeProjectedTargetBounds,
   containsProjectedPoint,
+  geometryContainsPoint,
   resolveProjectedTargetGeometry,
   resolveTargetGeometry,
 } from '../quiz/targetGeometry.js';
@@ -41,6 +43,10 @@ const riversGeoJson = {
   ],
 };
 
+const realWorldGeoJson = JSON.parse(
+  readFileSync(new URL('../data/world.geojson', import.meta.url), 'utf8'),
+);
+
 describe('resolveTargetGeometry', () => {
   it('uses manual polygons for seas', () => {
     const geometry = resolveTargetGeometry({
@@ -62,6 +68,42 @@ describe('resolveTargetGeometry', () => {
 
     expect(geometry.kind).toBe('polygon');
     expect(geometry.geometry.type).toBe('Polygon');
+  });
+
+  it('clips the Atlantic Ocean away from Iceland and Ireland', () => {
+    const geometry = resolveTargetGeometry(
+      { id: 'water-atlantic-ocean', category: 'water', lat: 62.5, lon: -20 },
+      { worldGeoJson: realWorldGeoJson },
+    );
+
+    expect(geometry.kind).toBe('polygon');
+    expect(geometryContainsPoint(geometry.geometry, -20, 62.5)).toBe(true);
+    expect(geometryContainsPoint(geometry.geometry, -19.0208, 64.9631)).toBe(false);
+    expect(geometryContainsPoint(geometry.geometry, -8.2439, 53.4129)).toBe(false);
+  });
+
+  it('clips the North Sea away from nearby countries', () => {
+    const geometry = resolveTargetGeometry(
+      { id: 'water-north-sea', category: 'water', lat: 56, lon: 3.5 },
+      { worldGeoJson: realWorldGeoJson },
+    );
+
+    expect(geometry.kind).toBe('polygon');
+    expect(geometryContainsPoint(geometry.geometry, 3.5, 56)).toBe(true);
+    expect(geometryContainsPoint(geometry.geometry, 5.2913, 52.1326)).toBe(false);
+    expect(geometryContainsPoint(geometry.geometry, 9.5018, 56.2639)).toBe(false);
+  });
+
+  it('clips the Baltic Sea away from adjacent land', () => {
+    const geometry = resolveTargetGeometry(
+      { id: 'water-baltic-sea', category: 'water', lat: 58.5, lon: 18 },
+      { worldGeoJson: realWorldGeoJson },
+    );
+
+    expect(geometry.kind).toBe('polygon');
+    expect(geometryContainsPoint(geometry.geometry, 18, 58.5)).toBe(true);
+    expect(geometryContainsPoint(geometry.geometry, 25.0136, 58.5953)).toBe(false);
+    expect(geometryContainsPoint(geometry.geometry, 25.7482, 61.9241)).toBe(false);
   });
 });
 

@@ -115,6 +115,54 @@ describe('HelicopterScene screen-space helpers', () => {
   });
 });
 
+describe('HelicopterScene.getInputControllerOptions', () => {
+  it('centres gameplay zoom on the helicopter when not in free-look', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene.freeLookActive = false;
+    scene.cameras = {
+      main: {
+        x: 0,
+        y: 0,
+        width: 1024,
+        height: 768,
+        zoom: 1,
+        scrollX: 0,
+        scrollY: 0,
+      },
+    };
+    scene.helicopter = { getPosition: vi.fn(() => ({ x: 320, y: 180 })) };
+    scene.helicopterPosition = { x: 320, y: 180 };
+    scene._fixedFramingActive = true;
+    scene._framingState = { zoom: 1.5, fitMode: 'width' };
+
+    const options = scene.getInputControllerOptions({
+      minZoom: 0.5,
+      maxZoom: 10,
+    });
+    const zoomFocus = options.getZoomAnchor(200, 300);
+
+    expect(options.minZoom).toBe(1.5);
+    expect(options.maxZoom).toBe(1200);
+    expect(options.dragLocked).toBe(true);
+    expect(zoomFocus).toEqual({
+      screenX: 512,
+      screenY: 384,
+      anchorX: 320,
+      anchorY: 180,
+    });
+  });
+
+  it('keeps free-look zoom anchored to the pointer', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene.freeLookActive = true;
+    scene.cameras = { main: { x: 0, y: 0, width: 1024, height: 768 } };
+
+    const options = scene.getInputControllerOptions({});
+
+    expect(options.getZoomAnchor(150, 260)).toEqual({ x: 150, y: 260 });
+  });
+});
+
 describe('HelicopterScene.setHelicopterTarget', () => {
   const makeTargetScene = () => {
     const scene = Object.create(HelicopterScene.prototype);
@@ -191,6 +239,24 @@ const makeFramingScene = () => {
   scene._quizSetTargets = null;
   scene._framingState = null;
   scene.baseMapMinZoom = 1;
+  scene.add = {
+    graphics: vi.fn(() => ({
+      setDepth: vi.fn(function () { return this; }),
+      setScrollFactor: vi.fn(function () { return this; }),
+      clear: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      fillPath: vi.fn(),
+      strokePath: vi.fn(),
+      fillCircle: vi.fn(),
+      lineStyle: vi.fn(),
+      fillStyle: vi.fn(),
+      destroy: vi.fn(),
+    })),
+  };
+  scene.registerWorldObject = vi.fn((gameObject) => gameObject);
 
   const camera = {
     width: 1280,
@@ -235,7 +301,7 @@ describe('HelicopterScene._applyFixedFramingState', () => {
     expect(scene.cameras.main.setZoom).toHaveBeenCalledWith(2.5);
     expect(scene.cameras.main.scrollX).toBe(300);
     expect(scene.cameras.main.scrollY).toBe(150);
-    expect(scene.inputController.setZoomLimits).toHaveBeenCalledWith(2.5, 2.5);
+    expect(scene.inputController.setZoomLimits).toHaveBeenCalledWith(2.5, 1200);
     expect(scene.inputController.clampCamera).toHaveBeenCalled();
     expect(scene.baseMapMinZoom).toBe(2.5);
   });
@@ -290,10 +356,11 @@ describe('HelicopterScene.isManualCameraActive', () => {
   const makeManualCameraScene = (fitMode = 'width', inputControllerOverrides = {}) => {
     const scene = Object.create(HelicopterScene.prototype);
     scene._fixedFramingActive = true;
-    scene._framingState = { fitMode };
+    scene._framingState = { fitMode, zoom: 1.5 };
     scene.freeLookActive = false;
     scene.manualCameraUntil = 0;
     scene.time = { now: 0 };
+    scene.cameras = { main: { zoom: 1.5 } };
     scene.inputController = {
       dragging: false,
       pinching: false,
@@ -332,6 +399,13 @@ describe('HelicopterScene.isManualCameraActive', () => {
     expect(scene.isManualCameraActive(0)).toBe(true);
     expect(scene.enterFreeLook).toHaveBeenCalled();
   });
+
+  it('allows fixed framing to resume follow once gameplay zooms in', () => {
+    const scene = makeManualCameraScene('width');
+    scene.cameras.main.zoom = 2;
+
+    expect(scene.isManualCameraActive(0)).toBe(false);
+  });
 });
 
 describe('HelicopterScene.handleResize with fixed framing', () => {
@@ -357,9 +431,9 @@ describe('HelicopterScene.handleResize with fixed framing', () => {
     expect(scene.cameras.main.scrollX).toBe(350);
     expect(scene.cameras.main.scrollY).toBe(180);
 
-    // Final setZoomLimits call must lock both ends to the framing zoom.
+    // Final setZoomLimits call must keep the framing zoom as the minimum.
     const calls = scene.inputController.setZoomLimits.mock.calls;
-    expect(calls[calls.length - 1]).toEqual([2.8, 2.8]);
+    expect(calls[calls.length - 1]).toEqual([2.8, 1200]);
   });
 
   it('does not apply fixed framing state when fixed framing is inactive', () => {
@@ -493,6 +567,78 @@ describe('HelicopterScene createSceneSystems fixed-framing reapplication', () =>
       'startup-live-camera',
     );
     expect(scene._framingState).toBe(framingFromCamera);
+  });
+});
+
+describe('HelicopterScene._updateProximityZoom', () => {
+  it('still applies proximity zoom during fixed-framing gameplay', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    scene._fixedFramingActive = true;
+    scene._framingState = { zoom: 1.5, fitMode: 'width' };
+    scene._activeTargetPoint = { x: 150, y: 150 };
+    scene._proximityBaseZoom = 1.5;
+    scene._proximityLastSetZoom = 1.5;
+    scene.cameras = { main: { zoom: 1.5 } };
+    scene.helicopter = { getPosition: vi.fn(() => ({ x: 170, y: 160 })) };
+    scene.inputController = {
+      applyZoom: vi.fn((zoom) => {
+        scene.cameras.main.zoom = zoom;
+      }),
+    };
+    scene._resolveGameplayZoomFocus = vi.fn(() => ({
+      screenX: 512,
+      screenY: 384,
+      anchorX: 300,
+      anchorY: 250,
+    }));
+
+    scene._updateProximityZoom();
+
+    expect(scene.inputController.applyZoom).toHaveBeenCalled();
+    expect(scene._proximityLastSetZoom).toBe(scene.cameras.main.zoom);
+  });
+});
+
+describe('HelicopterScene._initQuizController', () => {
+  it('passes projection and datasets to overlap avoidance', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    const targetsData = {
+      areas: [{ id: 'area-scandinavia', name: 'Scandinavië', lat: 63.5, lon: 17 }],
+      cities: [{ id: 'city-stockholm', name: 'Stockholm', lat: 59.3293, lon: 18.0686 }],
+    };
+    const levelsData = {
+      default: 'level-1',
+      levels: [{ id: 'level-1', categories: ['areas', 'cities'], targetCount: 2 }],
+    };
+    const datasets = {
+      worldGeoJson: { type: 'FeatureCollection', features: [] },
+      lakesGeoJson: { type: 'FeatureCollection', features: [] },
+      riversGeoJson: { type: 'FeatureCollection', features: [] },
+    };
+    const cacheEntries = new Map([
+      ['quiz-targets', targetsData],
+      ['quiz-levels', levelsData],
+    ]);
+
+    scene.cache = {
+      json: {
+        get: vi.fn((key) => cacheEntries.get(key) ?? datasets[key] ?? null),
+      },
+    };
+    scene._getDatasets = vi.fn(() => datasets);
+    scene._resolveStartPlayMode = vi.fn(() => null);
+    scene._resolveBootstrapQuizSetData = vi.fn(() => null);
+    scene._resolveStartLevelId = vi.fn(() => null);
+    scene._onQuizTargetChange = vi.fn();
+    scene._onQuizScoreUpdate = vi.fn();
+    scene._onQuizComplete = vi.fn();
+    scene.projectLatLon = vi.fn((lat, lon) => ({ x: lon * 100, y: lat * 100 }));
+
+    scene._initQuizController();
+
+    expect(typeof scene._quizController._projectFn).toBe('function');
+    expect(scene._quizController._projectFn(1, 2)).toEqual({ x: 200, y: 100 });
+    expect(scene._quizController._datasets).toBe(datasets);
   });
 });
 

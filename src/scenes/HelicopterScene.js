@@ -164,9 +164,7 @@ export default class HelicopterScene extends MapScene {
     this._startQuizSystems();
 
     this._debugOverlay = new DebugOverlay(this);
-    if (this._debugOverlay.enabled) {
-      this._debugOverlay.render(this._getAllQuizTargets());
-    }
+    this._debugOverlay.render(this._getAllQuizTargets());
 
     // Fixed framing: permanently lock camera follow so the framing holds.
     // Also recompute and reapply the framing using the actual camera viewport
@@ -299,32 +297,80 @@ export default class HelicopterScene extends MapScene {
       onCommandUp: (pointer) => this.handleCommandUp(pointer),
       commandPredicate: (pointer, worldX, worldY) =>
         this.shouldHandleCommand(pointer, worldX, worldY),
-      // When camera-follow is active, zoom around the screen centre (helicopter stays visible).
-      // Only zoom around the mouse pointer when the user has entered free-look mode.
       getZoomAnchor: (mouseCanvasX, mouseCanvasY) => {
-        if (this.freeLookActive) {
-          return { x: mouseCanvasX, y: mouseCanvasY };
-        }
-        const heliPos = this.helicopterPosition;
-        if (heliPos) {
-          return getCameraCanvasPoint(this.cameras.main, heliPos.x, heliPos.y);
-        }
-        return {
-          x: this.cameras.main.width * 0.5,
-          y: this.cameras.main.height * 0.5,
-        };
+        return this._resolveGameplayZoomFocus(mouseCanvasX, mouseCanvasY);
       },
     };
 
     if (this._fixedFramingActive && this._framingState) {
-      const z = this._framingState.zoom;
-      opts.zoomLocked = true;
-      opts.dragLocked = true;
-      opts.minZoom = z;
-      opts.maxZoom = z;
+      opts.minZoom = this._framingState.zoom;
+      opts.maxZoom = this.getMaxZoom(this._framingState.zoom);
+      opts.dragLocked = this._framingState.fitMode !== 'cover';
     }
 
     return opts;
+  }
+
+  _getCameraCanvasCenter() {
+    const camera = this.cameras.main;
+    return {
+      x: (camera?.x ?? 0) + (camera?.width ?? 0) * 0.5,
+      y: (camera?.y ?? 0) + (camera?.height ?? 0) * 0.5,
+    };
+  }
+
+  _resolveGameplayZoomFocus(pointerCanvasX, pointerCanvasY) {
+    const center = this._getCameraCanvasCenter();
+    const fallbackCanvasX = Number.isFinite(pointerCanvasX) ? pointerCanvasX : center.x;
+    const fallbackCanvasY = Number.isFinite(pointerCanvasY) ? pointerCanvasY : center.y;
+
+    if (this.freeLookActive) {
+      return {
+        x: fallbackCanvasX,
+        y: fallbackCanvasY,
+      };
+    }
+
+    const currentHelicopterPosition = this.helicopter?.getPosition?.() ?? this.helicopterPosition;
+    const heliX = Array.isArray(currentHelicopterPosition)
+      ? currentHelicopterPosition[0]
+      : currentHelicopterPosition?.x;
+    const heliY = Array.isArray(currentHelicopterPosition)
+      ? currentHelicopterPosition[1]
+      : currentHelicopterPosition?.y;
+
+    if (Number.isFinite(heliX) && Number.isFinite(heliY)) {
+      const heliCanvasPoint = getCameraCanvasPoint(this.cameras.main, heliX, heliY);
+      return {
+        screenX: center.x,
+        screenY: center.y,
+        anchorX: heliCanvasPoint.x,
+        anchorY: heliCanvasPoint.y,
+      };
+    }
+
+    return {
+      x: center.x,
+      y: center.y,
+    };
+  }
+
+  _applyGameplayZoom(zoom, source = 'direct') {
+    const camera = this.cameras.main;
+    if (!camera) {
+      return null;
+    }
+
+    const focus = this._resolveGameplayZoomFocus();
+    if (this.inputController?.applyZoom) {
+      this.inputController.applyZoom(zoom, focus, source);
+      return this.cameras.main.zoom;
+    }
+
+    const nextZoom = Math.max(Number(zoom) || 0, 0.0001);
+    camera.setZoom?.(nextZoom);
+    camera.zoom = nextZoom;
+    return camera.zoom;
   }
 
   getOverlayText() {
@@ -711,7 +757,7 @@ export default class HelicopterScene extends MapScene {
         framing.centerY,
       );
     setCameraScroll(this.cameras.main, cameraScroll.x, cameraScroll.y);
-    this.inputController?.setZoomLimits(z, z);
+    this.inputController?.setZoomLimits(z, this.getMaxZoom(z));
     this.inputController?.clampCamera?.();
     this.baseMapMinZoom = z;
 
@@ -978,6 +1024,7 @@ export default class HelicopterScene extends MapScene {
   _initQuizController() {
     const targetsData = this.cache?.json?.get(DATA_CACHE_KEYS.QUIZ_TARGETS) ?? null;
     const levelsData  = this.cache?.json?.get(DATA_CACHE_KEYS.QUIZ_LEVELS)  ?? null;
+    const datasets = this._getDatasets();
 
     if (!targetsData || !levelsData) return;
 
@@ -986,6 +1033,8 @@ export default class HelicopterScene extends MapScene {
       onScoreUpdate:  (progress)         => this._onQuizScoreUpdate(progress),
       onComplete:     (progress)         => this._onQuizComplete(progress),
       playMode:       this._resolveStartPlayMode(),
+      projectFn:      (lat, lon)         => this.projectLatLon(lat, lon),
+      datasets,
     });
     this._currentPlayMode = this._resolveStartPlayMode();
 
@@ -1321,10 +1370,16 @@ export default class HelicopterScene extends MapScene {
   }
 
   isManualCameraActive(now) {
-    // Fixed framing is usually locked, but portrait cover mode keeps the
-    // helicopter in view by allowing follow unless the player is actively
-    // steering the camera.
-    if (this._fixedFramingActive && this._framingState?.fitMode !== 'cover') {
+    // Landscape fixed framing stays pinned only while the camera is at the
+    // framing zoom. Once gameplay zooms in, camera follow resumes so the
+    // helicopter remains the focal point.
+    const framingZoom = this._framingState?.zoom;
+    if (
+      this._fixedFramingActive &&
+      this._framingState?.fitMode !== 'cover' &&
+      Number.isFinite(framingZoom) &&
+      (this.cameras.main?.zoom ?? framingZoom) <= framingZoom + 0.0001
+    ) {
       return true;
     }
 
@@ -1356,6 +1411,7 @@ export default class HelicopterScene extends MapScene {
   syncZoomResponsiveElements() {
     super.syncZoomResponsiveElements();
     this.syncHelicopterScale();
+    this._debugOverlay?.render(this._getAllQuizTargets());
   }
 
   syncHelicopterScale() {
@@ -1418,7 +1474,46 @@ export default class HelicopterScene extends MapScene {
     }
 
     this._updateProximityZoom();
+    this._restoreFixedFramingAtBaseZoom();
     this._updateQuiz(delta);
+  }
+
+  _restoreFixedFramingAtBaseZoom() {
+    if (
+      !this._fixedFramingActive ||
+      this._framingState?.fitMode === 'cover' ||
+      !Number.isFinite(this._framingState?.zoom)
+    ) {
+      return;
+    }
+
+    const camera = this.cameras.main;
+    if (!camera || camera.zoom > this._framingState.zoom + 0.0001) {
+      return;
+    }
+
+    const framingScroll =
+      Number.isFinite(this._framingState.cameraScrollX) &&
+      Number.isFinite(this._framingState.cameraScrollY)
+        ? {
+            x: this._framingState.cameraScrollX,
+            y: this._framingState.cameraScrollY,
+          }
+        : getCameraScrollForWorldCenter(
+            camera,
+            this._framingState.centerX,
+            this._framingState.centerY,
+          );
+
+    if (
+      Math.abs((camera.scrollX ?? 0) - framingScroll.x) <= 0.5 &&
+      Math.abs((camera.scrollY ?? 0) - framingScroll.y) <= 0.5 &&
+      this.cameraFollowPaused
+    ) {
+      return;
+    }
+
+    this._applyFixedFramingState(this._framingState, 'restore-base-zoom');
   }
 
   _updateRotorAudio() {
@@ -1434,7 +1529,7 @@ export default class HelicopterScene extends MapScene {
 
   _updateProximityZoom() {
     const camera = this.cameras.main;
-    if (!camera || this._fixedFramingActive) return;
+    if (!camera) return;
 
     const currentZoom = camera.zoom;
 
@@ -1472,7 +1567,7 @@ export default class HelicopterScene extends MapScene {
 
     const nextZoom = currentZoom + (targetZoom - currentZoom) * PROXIMITY_ZOOM.LERP;
     if (Math.abs(nextZoom - currentZoom) > 0.00001) {
-      camera.zoom = nextZoom;
+      this._applyGameplayZoom(nextZoom, 'proximity');
     }
     this._proximityLastSetZoom = camera.zoom;
   }

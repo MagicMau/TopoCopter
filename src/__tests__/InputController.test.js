@@ -159,6 +159,59 @@ describe('InputController.clampCamera', () => {
       });
       expect(ic.getZoomAnchor).toBe(anchor);
     });
+
+    it('allows wheel zoom to use separate screen and anchor positions', () => {
+      const cam = makeCamera(0, 0, 1024, 768, 1);
+      const ic = makeInputController({
+        camera: cam,
+        extra: {
+          getZoomAnchor: () => ({
+            screenX: 512,
+            screenY: 384,
+            anchorX: 240,
+            anchorY: 180,
+          }),
+        },
+      });
+      ic.zoomTo = vi.fn();
+
+      ic.handleWheel(
+        { x: 200, y: 300, event: { preventDefault: vi.fn() } },
+        null,
+        0,
+        -100,
+        0,
+        { preventDefault: vi.fn() },
+      );
+
+      expect(ic.zoomTo).toHaveBeenCalledWith(expect.any(Number), 512, 384, 240, 180);
+    });
+
+    it('applies getZoomAnchor to pinch zoom as well', () => {
+      const cam = makeCamera(0, 0, 1024, 768, 1);
+      const ic = makeInputController({
+        camera: cam,
+        extra: {
+          getZoomAnchor: () => ({
+            screenX: 512,
+            screenY: 384,
+            anchorX: 256,
+            anchorY: 192,
+          }),
+        },
+      });
+      ic.zoomTo = vi.fn();
+      ic.lastPinchDistance = 100;
+      ic.lastPinchMidX = 300;
+      ic.lastPinchMidY = 250;
+
+      ic.updatePinch(
+        { x: 200, y: 250, id: 1, isDown: true, pointerType: 'touch' },
+        { x: 420, y: 250, id: 2, isDown: true, pointerType: 'touch' },
+      );
+
+      expect(ic.zoomTo).toHaveBeenCalledWith(expect.any(Number), 512, 384, 256, 192);
+    });
   });
 });
 

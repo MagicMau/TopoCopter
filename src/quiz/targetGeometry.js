@@ -19,6 +19,194 @@ function cloneGeometry(geometry) {
   return geometry ? JSON.parse(JSON.stringify(geometry)) : null;
 }
 
+function closeCoordinateRing(ring) {
+  if (!Array.isArray(ring) || ring.length === 0) {
+    return [];
+  }
+
+  const closedRing = ring
+    .map((coordinate) => [Number(coordinate?.[0]), Number(coordinate?.[1])])
+    .filter((coordinate) =>
+      Number.isFinite(coordinate[0]) && Number.isFinite(coordinate[1]));
+
+  if (closedRing.length === 0) {
+    return [];
+  }
+
+  const first = closedRing[0];
+  const last = closedRing[closedRing.length - 1];
+  if (first[0] === last[0] && first[1] === last[1]) {
+    return closedRing;
+  }
+
+  return [...closedRing, first];
+}
+
+function getOpenRing(ring) {
+  const closedRing = closeCoordinateRing(ring);
+  return closedRing.length > 1 ? closedRing.slice(0, -1) : [];
+}
+
+function computeRingSignedArea(ring) {
+  const openRing = getOpenRing(ring);
+  if (openRing.length < 3) {
+    return 0;
+  }
+
+  let area = 0;
+  for (let index = 0; index < openRing.length; index += 1) {
+    const current = openRing[index];
+    const next = openRing[(index + 1) % openRing.length];
+    area += current[0] * next[1] - next[0] * current[1];
+  }
+
+  return area * 0.5;
+}
+
+function orientRing(ring, clockwise) {
+  const closedRing = closeCoordinateRing(ring);
+  if (closedRing.length < 4) {
+    return closedRing;
+  }
+
+  const isClockwise = computeRingSignedArea(closedRing) < 0;
+  if (isClockwise === clockwise) {
+    return closedRing;
+  }
+
+  return closeCoordinateRing(closedRing.slice(0, -1).reverse());
+}
+
+function dedupeRingPoints(ring) {
+  if (!Array.isArray(ring) || ring.length === 0) {
+    return [];
+  }
+
+  const deduped = [];
+  ring.forEach((coordinate) => {
+    const lon = Number(coordinate?.[0]);
+    const lat = Number(coordinate?.[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      return;
+    }
+
+    const previous = deduped[deduped.length - 1];
+    if (previous && Math.abs(previous[0] - lon) <= 1e-9 && Math.abs(previous[1] - lat) <= 1e-9) {
+      return;
+    }
+
+    deduped.push([lon, lat]);
+  });
+
+  if (deduped.length > 1) {
+    const first = deduped[0];
+    const last = deduped[deduped.length - 1];
+    if (Math.abs(first[0] - last[0]) <= 1e-9 && Math.abs(first[1] - last[1]) <= 1e-9) {
+      deduped.pop();
+    }
+  }
+
+  return deduped;
+}
+
+function isPointInsideClipEdge(point, edgeStart, edgeEnd, clipIsCounterClockwise) {
+  const edgeX = edgeEnd[0] - edgeStart[0];
+  const edgeY = edgeEnd[1] - edgeStart[1];
+  const pointX = point[0] - edgeStart[0];
+  const pointY = point[1] - edgeStart[1];
+  const crossProduct = edgeX * pointY - edgeY * pointX;
+
+  return clipIsCounterClockwise
+    ? crossProduct >= -1e-9
+    : crossProduct <= 1e-9;
+}
+
+function intersectSegmentWithEdge(start, end, edgeStart, edgeEnd) {
+  const x1 = start[0];
+  const y1 = start[1];
+  const x2 = end[0];
+  const y2 = end[1];
+  const x3 = edgeStart[0];
+  const y3 = edgeStart[1];
+  const x4 = edgeEnd[0];
+  const y4 = edgeEnd[1];
+  const denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+
+  if (Math.abs(denominator) <= 1e-9) {
+    return [x2, y2];
+  }
+
+  const determinantA = x1 * y2 - y1 * x2;
+  const determinantB = x3 * y4 - y3 * x4;
+
+  return [
+    (determinantA * (x3 - x4) - (x1 - x2) * determinantB) / denominator,
+    (determinantA * (y3 - y4) - (y1 - y2) * determinantB) / denominator,
+  ];
+}
+
+function clipRingToConvexRing(subjectRing, clipRing) {
+  let outputRing = getOpenRing(subjectRing);
+  const clipPoints = getOpenRing(clipRing);
+
+  if (outputRing.length < 3 || clipPoints.length < 3) {
+    return null;
+  }
+
+  const clipIsCounterClockwise = computeRingSignedArea(clipPoints) >= 0;
+
+  for (let index = 0; index < clipPoints.length; index += 1) {
+    const edgeStart = clipPoints[index];
+    const edgeEnd = clipPoints[(index + 1) % clipPoints.length];
+    const inputRing = outputRing;
+    outputRing = [];
+
+    if (inputRing.length === 0) {
+      return null;
+    }
+
+    let start = inputRing[inputRing.length - 1];
+    for (const end of inputRing) {
+      const endInside = isPointInsideClipEdge(
+        end,
+        edgeStart,
+        edgeEnd,
+        clipIsCounterClockwise,
+      );
+      const startInside = isPointInsideClipEdge(
+        start,
+        edgeStart,
+        edgeEnd,
+        clipIsCounterClockwise,
+      );
+
+      if (endInside) {
+        if (!startInside) {
+          outputRing.push(intersectSegmentWithEdge(start, end, edgeStart, edgeEnd));
+        }
+        outputRing.push(end);
+      } else if (startInside) {
+        outputRing.push(intersectSegmentWithEdge(start, end, edgeStart, edgeEnd));
+      }
+
+      start = end;
+    }
+
+    outputRing = dedupeRingPoints(outputRing);
+  }
+
+  if (outputRing.length < 3) {
+    return null;
+  }
+
+  const clippedRing = closeCoordinateRing(outputRing);
+  if (clippedRing.length < 4 || Math.abs(computeRingSignedArea(clippedRing)) <= 1e-6) {
+    return null;
+  }
+
+  return clippedRing;
+}
+
 function extractGeometries(source, allowedTypes) {
   if (!source) {
     return [];
@@ -346,6 +534,111 @@ export function findNearestLineGeometry(source, lon, lat) {
   return bestGeometry;
 }
 
+function extractPolygonCoordinateSets(geometry) {
+  if (!geometry) {
+    return [];
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates ?? [];
+  }
+
+  if (geometry.type === 'Polygon') {
+    return [geometry.coordinates];
+  }
+
+  return [];
+}
+
+function resolveLandClipGeometries(landClipPoints, worldGeoJson) {
+  if (!Array.isArray(landClipPoints) || landClipPoints.length === 0 || !worldGeoJson) {
+    return [];
+  }
+
+  const seen = new Set();
+  const landGeometries = [];
+
+  landClipPoints.forEach((point) => {
+    const lon = Number(point?.[0]);
+    const lat = Number(point?.[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      return;
+    }
+
+    const geometry = findContainingOrNearestPolygonGeometry(worldGeoJson, lon, lat);
+    if (!geometry) {
+      return;
+    }
+
+    const key = JSON.stringify(geometry.coordinates ?? geometry);
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    landGeometries.push(geometry);
+  });
+
+  return landGeometries;
+}
+
+function resolveManualGeometry(manualGeometry, datasets = {}) {
+  const baseGeometry = cloneGeometry({
+    type: manualGeometry?.type,
+    coordinates: manualGeometry?.coordinates,
+  });
+
+  if (
+    !baseGeometry ||
+    (baseGeometry.type !== 'Polygon' && baseGeometry.type !== 'MultiPolygon')
+  ) {
+    return baseGeometry;
+  }
+
+  const landGeometries = resolveLandClipGeometries(
+    manualGeometry.landClipPoints,
+    datasets.worldGeoJson,
+  );
+  if (landGeometries.length === 0) {
+    return baseGeometry;
+  }
+
+  const polygonSets = extractPolygonCoordinateSets(baseGeometry);
+
+  polygonSets.forEach((polygon) => {
+    const outerRing = polygon?.[0];
+    if (!Array.isArray(outerRing) || outerRing.length < 4) {
+      return;
+    }
+
+    const outerIsCounterClockwise = computeRingSignedArea(outerRing) >= 0;
+    const holeKeys = new Set(
+      (polygon.slice(1) ?? []).map((hole) => JSON.stringify(closeCoordinateRing(hole))),
+    );
+
+    landGeometries.forEach((landGeometry) => {
+      extractPolygonCoordinateSets(landGeometry).forEach((landPolygon) => {
+        const landOuterRing = landPolygon?.[0];
+        const clippedHole = clipRingToConvexRing(landOuterRing, outerRing);
+        if (!clippedHole) {
+          return;
+        }
+
+        const orientedHole = orientRing(clippedHole, outerIsCounterClockwise);
+        const holeKey = JSON.stringify(orientedHole);
+        if (holeKeys.has(holeKey)) {
+          return;
+        }
+
+        polygon.push(orientedHole);
+        holeKeys.add(holeKey);
+      });
+    });
+  });
+
+  return baseGeometry;
+}
+
 function buildCircleGeometry(target, screenRadiusPx) {
   return {
     kind: 'circle',
@@ -369,12 +662,14 @@ export function resolveTargetGeometry(target, datasets = {}) {
 
   const manualGeometry = TARGET_GEOMETRY_DEFINITIONS[targetId];
   if (manualGeometry) {
+    const resolvedManualGeometry = resolveManualGeometry(manualGeometry, datasets);
     return {
       kind:
-        manualGeometry.type === 'LineString' || manualGeometry.type === 'MultiLineString'
+        resolvedManualGeometry.type === 'LineString' ||
+        resolvedManualGeometry.type === 'MultiLineString'
           ? 'line'
           : 'polygon',
-      geometry: cloneGeometry(manualGeometry),
+      geometry: resolvedManualGeometry,
       screenBufferPx: DEFAULT_LINE_BUFFER_PX,
     };
   }
