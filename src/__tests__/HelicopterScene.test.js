@@ -102,16 +102,26 @@ describe('HelicopterScene screen-space helpers', () => {
     expect(scene.getTargetHitRadius()).toBeCloseTo(9);
   });
 
-  it('scales the helicopter to a stable on-screen width', () => {
+  it('keeps the helicopter tiny when zoomed out and a bit larger when zoomed in', () => {
     const scene = makeSizingScene();
+    scene.baseMapMinZoom = 2;
     scene.helicopter = {
       getBaseDisplaySize: () => ({ width: 80, height: 80 }),
       setVisualScale: vi.fn(),
     };
 
     scene.syncHelicopterScale();
+    const farOutScale = scene.helicopter.setVisualScale.mock.lastCall[0];
+    const farOutScreenWidth = 80 * farOutScale * scene.cameras.main.zoom;
 
-    expect(scene.helicopter.setVisualScale).toHaveBeenCalledWith(0.45);
+    scene.cameras.main.zoom = 8;
+    scene.syncHelicopterScale();
+    const zoomedInScale = scene.helicopter.setVisualScale.mock.lastCall[0];
+    const zoomedInScreenWidth = 80 * zoomedInScale * scene.cameras.main.zoom;
+
+    expect(farOutScreenWidth).toBeLessThan(18);
+    expect(zoomedInScreenWidth).toBeGreaterThan(farOutScreenWidth);
+    expect(zoomedInScreenWidth).toBeLessThan(45);
   });
 });
 
@@ -570,32 +580,27 @@ describe('HelicopterScene createSceneSystems fixed-framing reapplication', () =>
   });
 });
 
-describe('HelicopterScene._updateProximityZoom', () => {
-  it('still applies proximity zoom during fixed-framing gameplay', () => {
+describe('HelicopterScene.updateScene', () => {
+  it('does not auto-adjust zoom while gameplay systems update', () => {
     const scene = Object.create(HelicopterScene.prototype);
-    scene._fixedFramingActive = true;
-    scene._framingState = { zoom: 1.5, fitMode: 'width' };
+    scene.time = { now: 0 };
+    scene.isManualCameraActive = vi.fn(() => false);
+    scene.setCameraFollowPaused = vi.fn();
+    scene.helicopter = { update: vi.fn() };
+    scene._updateRotorAudio = vi.fn();
+    scene.cameraController = { update: vi.fn() };
+    scene._restoreFixedFramingAtBaseZoom = vi.fn();
+    scene._updateQuiz = vi.fn();
     scene._activeTargetPoint = { x: 150, y: 150 };
-    scene._proximityBaseZoom = 1.5;
-    scene._proximityLastSetZoom = 1.5;
     scene.cameras = { main: { zoom: 1.5 } };
-    scene.helicopter = { getPosition: vi.fn(() => ({ x: 170, y: 160 })) };
-    scene.inputController = {
-      applyZoom: vi.fn((zoom) => {
-        scene.cameras.main.zoom = zoom;
-      }),
-    };
-    scene._resolveGameplayZoomFocus = vi.fn(() => ({
-      screenX: 512,
-      screenY: 384,
-      anchorX: 300,
-      anchorY: 250,
-    }));
+    scene.inputController = { applyZoom: vi.fn() };
 
-    scene._updateProximityZoom();
+    scene.updateScene(0, 16);
 
-    expect(scene.inputController.applyZoom).toHaveBeenCalled();
-    expect(scene._proximityLastSetZoom).toBe(scene.cameras.main.zoom);
+    expect(scene.inputController.applyZoom).not.toHaveBeenCalled();
+    expect(scene.cameraController.update).toHaveBeenCalledWith(16);
+    expect(scene._restoreFixedFramingAtBaseZoom).toHaveBeenCalled();
+    expect(scene._updateQuiz).toHaveBeenCalledWith(16);
   });
 });
 

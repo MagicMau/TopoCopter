@@ -308,5 +308,20 @@ describe('Helicopter (fallback-body / no-physics environment)', () => {
       expect(body.velocity.x).toBe(150);
       expect(body.velocity.y).toBe(75);
     });
+
+    it('supports very small visual scales while keeping the hitbox stable', () => {
+      const body = makePhysicsBody();
+      const heli = new Helicopter(makePhysicsScene(body), 0, 0);
+      body.setSize.mockClear();
+
+      heli.setVisualScale(0.001);
+
+      expect(body.setSize).toHaveBeenCalledOnce();
+      expect(body.setSize).toHaveBeenCalledWith(
+        heli._physicsWidth / 0.001,
+        heli._physicsHeight / 0.001,
+        true,
+      );
+    });
   });
 });

@@ -40,7 +40,6 @@ import {
   HELICOPTER_STYLE,
   MARKER_STYLE,
   MOVEMENT_STYLE,
-  PROXIMITY_ZOOM,
   QUIZ_TARGET_STYLE,
   ROTATION_STYLE,
   WORLD_DEPTHS,
@@ -102,11 +101,6 @@ export default class HelicopterScene extends MapScene {
 
     this._audioManager       = null;
     this._bootstrapQuizSetData = undefined;
-
-    // Proximity zoom state
-    this._proximityBaseZoom   = null; // manual/base zoom level
-    this._proximityLastSetZoom = null; // zoom we last applied via proximity logic
-
     this._debugOverlay = null;
   }
 
@@ -249,9 +243,6 @@ export default class HelicopterScene extends MapScene {
     this._framingState       = null;
     this._bootstrapQuizSetData = undefined;
 
-    this._proximityBaseZoom   = null;
-    this._proximityLastSetZoom = null;
-
     this._debugOverlay?.destroy();
     this._debugOverlay = null;
 
@@ -353,24 +344,6 @@ export default class HelicopterScene extends MapScene {
       x: center.x,
       y: center.y,
     };
-  }
-
-  _applyGameplayZoom(zoom, source = 'direct') {
-    const camera = this.cameras.main;
-    if (!camera) {
-      return null;
-    }
-
-    const focus = this._resolveGameplayZoomFocus();
-    if (this.inputController?.applyZoom) {
-      this.inputController.applyZoom(zoom, focus, source);
-      return this.cameras.main.zoom;
-    }
-
-    const nextZoom = Math.max(Number(zoom) || 0, 0.0001);
-    camera.setZoom?.(nextZoom);
-    camera.zoom = nextZoom;
-    return camera.zoom;
   }
 
   getOverlayText() {
@@ -556,11 +529,40 @@ export default class HelicopterScene extends MapScene {
     return this.getTargetScreenRadius() / this.getCameraZoom();
   }
 
-  getHelicopterScreenWidth() {
+  getHelicopterReferenceScreenWidth() {
     const configuredWidth = this._quizController?.level?.helicopterScreenWidth;
     return Number.isFinite(configuredWidth)
       ? Math.max(configuredWidth, 1)
-      : HELICOPTER_STYLE.SCREEN_WIDTH;
+      : HELICOPTER_STYLE.REFERENCE_SCREEN_WIDTH;
+  }
+
+  getHelicopterDesiredScreenWidth(zoom = this.getCameraZoom()) {
+    const clampedZoom = Math.max(Number(zoom) || 0, 0.0001);
+    const baseZoom = Math.max(
+      Number.isFinite(this.baseMapMinZoom) ? this.baseMapMinZoom : clampedZoom,
+      0.0001,
+    );
+    const referenceWidth = this.getHelicopterReferenceScreenWidth();
+    const minScreenWidth =
+      referenceWidth * HELICOPTER_STYLE.MIN_SCREEN_WIDTH_FACTOR;
+    const maxScreenWidth =
+      referenceWidth * HELICOPTER_STYLE.MAX_SCREEN_WIDTH_FACTOR;
+    const zoomRatio = Math.max(clampedZoom / baseZoom, 1);
+    const growthMultiplier = Math.max(
+      HELICOPTER_STYLE.ZOOM_GROWTH_MULTIPLIER,
+      1.0001,
+    );
+    const growthProgress = Phaser.Math.Clamp(
+      Math.log(zoomRatio) / Math.log(growthMultiplier),
+      0,
+      1,
+    );
+    const easedProgress = Math.pow(
+      growthProgress,
+      HELICOPTER_STYLE.ZOOM_GROWTH_CURVE,
+    );
+
+    return Phaser.Math.Linear(minScreenWidth, maxScreenWidth, easedProgress);
   }
 
   getRevealDurationMs() {
@@ -953,7 +955,7 @@ export default class HelicopterScene extends MapScene {
       helicopterScreenWidth:
         Number.isFinite(quizSet.helicopterScreenWidth)
           ? Math.max(quizSet.helicopterScreenWidth, 1)
-          : HELICOPTER_STYLE.SCREEN_WIDTH,
+          : HELICOPTER_STYLE.REFERENCE_SCREEN_WIDTH,
       revealDurationMs:
         Number.isFinite(quizSet.revealDurationMs)
           ? Math.max(quizSet.revealDurationMs, 1)
@@ -1419,14 +1421,14 @@ export default class HelicopterScene extends MapScene {
       return;
     }
 
-    const zoom = Math.max(this.cameras.main.zoom, 0.0001);
+    const zoom = this.getCameraZoom();
     const baseDisplaySize = this.helicopter.getBaseDisplaySize?.() ?? {
-      width: this.helicopter.displayWidth ?? HELICOPTER_STYLE.SCREEN_WIDTH,
-      height: this.helicopter.displayHeight ?? HELICOPTER_STYLE.SCREEN_WIDTH,
+      width: this.helicopter.displayWidth ?? HELICOPTER_STYLE.REFERENCE_SCREEN_WIDTH,
+      height: this.helicopter.displayHeight ?? HELICOPTER_STYLE.REFERENCE_SCREEN_WIDTH,
     };
     const baseWidth = Math.max(baseDisplaySize.width || 0, 1);
     const scale = Phaser.Math.Clamp(
-      this.getHelicopterScreenWidth() / (baseWidth * zoom),
+      this.getHelicopterDesiredScreenWidth(zoom) / (baseWidth * zoom),
       HELICOPTER_STYLE.MIN_SCALE,
       HELICOPTER_STYLE.MAX_SCALE,
     );
@@ -1473,7 +1475,6 @@ export default class HelicopterScene extends MapScene {
       this.cameraController?.update?.(delta);
     }
 
-    this._updateProximityZoom();
     this._restoreFixedFramingAtBaseZoom();
     this._updateQuiz(delta);
   }
@@ -1525,51 +1526,6 @@ export default class HelicopterScene extends MapScene {
     const maxSpeed = this._quizController?.level?.helicopterSpeed ?? MOVEMENT_STYLE.MAX_SPEED;
     const profile = interpolateRotorProfile(speed, maxSpeed);
     this._audioManager.setRotorProfile(profile);
-  }
-
-  _updateProximityZoom() {
-    const camera = this.cameras.main;
-    if (!camera) return;
-
-    const currentZoom = camera.zoom;
-
-    // Detect manual zoom: if camera.zoom differs from what proximity last set,
-    // the user (or another system) changed it → adopt it as the new base.
-    if (
-      this._proximityBaseZoom === null ||
-      (this._proximityLastSetZoom !== null &&
-        Math.abs(currentZoom - this._proximityLastSetZoom) > 0.0001)
-    ) {
-      this._proximityBaseZoom = currentZoom;
-    }
-
-    const baseZoom = this._proximityBaseZoom;
-    let targetZoom = baseZoom;
-
-    if (this._activeTargetPoint) {
-      const pos = this.helicopter?.getPosition?.();
-      if (pos) {
-        const heliX = Array.isArray(pos) ? pos[0] : pos.x;
-        const heliY = Array.isArray(pos) ? pos[1] : pos.y;
-        if (Number.isFinite(heliX) && Number.isFinite(heliY)) {
-          const dx = heliX - this._activeTargetPoint.x;
-          const dy = heliY - this._activeTargetPoint.y;
-          const dist = Math.hypot(dx, dy);
-          const t = 1 - Math.min(dist / PROXIMITY_ZOOM.START_DISTANCE, 1);
-          const maxZoom = Math.min(
-            baseZoom * PROXIMITY_ZOOM.MAX_MULTIPLIER,
-            CAMERA_LIMITS.MAX_ZOOM,
-          );
-          targetZoom = baseZoom + (maxZoom - baseZoom) * t;
-        }
-      }
-    }
-
-    const nextZoom = currentZoom + (targetZoom - currentZoom) * PROXIMITY_ZOOM.LERP;
-    if (Math.abs(nextZoom - currentZoom) > 0.00001) {
-      this._applyGameplayZoom(nextZoom, 'proximity');
-    }
-    this._proximityLastSetZoom = camera.zoom;
   }
 
   _updateQuiz(delta) {

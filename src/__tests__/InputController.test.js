@@ -212,6 +212,30 @@ describe('InputController.clampCamera', () => {
 
       expect(ic.zoomTo).toHaveBeenCalledWith(expect.any(Number), 512, 384, 256, 192);
     });
+
+    it('preserves the previous pinch anchor when only the screen focus changes', () => {
+      const cam = makeCamera(0, 0, 1024, 768, 1);
+      const ic = makeInputController({
+        camera: cam,
+        extra: {
+          getZoomAnchor: () => ({
+            screenX: 512,
+            screenY: 384,
+          }),
+        },
+      });
+      ic.zoomTo = vi.fn();
+      ic.lastPinchDistance = 100;
+      ic.lastPinchMidX = 300;
+      ic.lastPinchMidY = 250;
+
+      ic.updatePinch(
+        { x: 200, y: 250, id: 1, isDown: true, pointerType: 'touch' },
+        { x: 420, y: 250, id: 2, isDown: true, pointerType: 'touch' },
+      );
+
+      expect(ic.zoomTo).toHaveBeenCalledWith(expect.any(Number), 512, 384, 300, 250);
+    });
   });
 });
 
