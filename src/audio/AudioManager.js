@@ -11,8 +11,8 @@ export const AUDIO_ASSET_KEYS = Object.freeze({
 
 /**
  * Returns the shared AudioManager singleton.
- * Calling this does NOT create an AudioContext — that only happens on the first
- * unlock() call (which must come from a user-gesture handler for iOS Safari).
+ * Phaser's sound manager is attached later by GameConfig / PreloadScene once the
+ * game is live, so calling this early is safe.
  *
  * @returns {AudioManager}
  */
@@ -115,16 +115,39 @@ export class AudioManager {
 
     this._unlockPromise = resumePromise
       .then(() => {
-        if (context && context.state === 'running') {
-          soundManager.locked = false;
-        }
+        const finalizeUnlock = () => {
+          if (context && context.state === 'running') {
+            soundManager.locked = false;
+          }
 
-        if (soundManager.locked !== true && (!context || context.state === 'running')) {
-          this._onReady();
+          if (soundManager.locked !== true && (!context || context.state === 'running')) {
+            return true;
+          }
+
+          return false;
+        };
+
+        if (finalizeUnlock()) {
           return true;
         }
 
-        return false;
+        if (!context) {
+          return false;
+        }
+
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            Promise.resolve(context.resume())
+              .then(() => resolve(finalizeUnlock()))
+              .catch(() => resolve(false));
+          }, 100);
+        });
+      })
+      .then((ready) => {
+        if (ready) {
+          this._onReady();
+        }
+        return ready;
       })
       .catch((error) => {
         if (typeof console !== 'undefined') {
@@ -216,12 +239,14 @@ export class AudioManager {
     // playbackRate = 1.0 at hover and scales proportionally with speed.
     const rate = (profile.chopHz ?? ROTOR_HOVER.chopHz) / AIRWOLF_ROTOR_REFERENCE.chopHz;
 
-    const playbackRateParam =
-      this._rotorSound.source?.playbackRate ?? this._rotorSound.loopSource?.playbackRate ?? null;
+    const playbackRateParams = [
+      this._rotorSound.source?.playbackRate ?? null,
+      this._rotorSound.loopSource?.playbackRate ?? null,
+    ].filter(Boolean);
     const volumeParam = this._rotorSound.volumeNode?.gain ?? null;
 
-    if (playbackRateParam && volumeParam) {
-      scheduleTarget(playbackRateParam, rate);
+    if (playbackRateParams.length > 0 && volumeParam) {
+      playbackRateParams.forEach((param) => scheduleTarget(param, rate));
       scheduleTarget(volumeParam, profile.gain ?? ROTOR_HOVER.gain);
       return;
     }

@@ -21,6 +21,9 @@ function makeRotorSound() {
     source: {
       playbackRate: makeAudioParam(1),
     },
+    loopSource: {
+      playbackRate: makeAudioParam(1),
+    },
     volumeNode: {
       gain: makeAudioParam(ROTOR_HOVER.gain),
     },
@@ -111,6 +114,11 @@ describe('AudioManager.setRotorProfile', () => {
     manager.setRotorProfile({ chopHz: ROTOR_FLY.chopHz, gain: 0.2 });
 
     expect(sound.source.playbackRate.setTargetAtTime).toHaveBeenCalledWith(
+      expect.closeTo(ROTOR_FLY.chopHz / AIRWOLF_ROTOR_REFERENCE.chopHz, 5),
+      12,
+      0.25,
+    );
+    expect(sound.loopSource.playbackRate.setTargetAtTime).toHaveBeenCalledWith(
       expect.closeTo(ROTOR_FLY.chopHz / AIRWOLF_ROTOR_REFERENCE.chopHz, 5),
       12,
       0.25,
@@ -210,6 +218,30 @@ describe('AudioManager.unlock', () => {
 
     resolveResume();
     await expect(first).resolves.toBe(true);
+  });
+
+  it('retries once when Safari leaves the context suspended after resume()', async () => {
+    vi.useFakeTimers();
+    try {
+      const { manager, context } = createManager({ locked: true, state: 'suspended' });
+      let attempts = 0;
+      context.resume = vi.fn(() => {
+        attempts += 1;
+        if (attempts > 1) {
+          context.state = 'running';
+        }
+        return Promise.resolve();
+      });
+
+      const unlockPromise = manager.unlock();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(100);
+
+      await expect(unlockPromise).resolves.toBe(true);
+      expect(context.resume).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
