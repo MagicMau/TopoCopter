@@ -7,7 +7,12 @@ import worldMajorRiversUrl from '../data/world-major-rivers.geojson?url';
 import targetsUrl from '../data/targets.json?url';
 import levelsUrl from '../data/levels.json?url';
 import quizSetsUrl from '../data/quiz-sets.json?url';
+import rotorLoopUrl from '../../assets/audio/rotor-loop.wav?url';
+import foundSoundUrl from '../../assets/audio/found.wav?url';
+import winSoundUrl from '../../assets/audio/win.wav?url';
+import lossSoundUrl from '../../assets/audio/loss.wav?url';
 import { DETAIL_LAYER_DEFINITIONS } from '../data/detailLayers.js';
+import { getAudioManager, AUDIO_ASSET_KEYS } from '../audio/AudioManager.js';
 import { MAP_STYLE, OVERLAY_STYLE, PALETTE } from '../ui/styles.js';
 
 export const DATA_CACHE_KEYS = Object.freeze({
@@ -75,6 +80,10 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.json(DATA_CACHE_KEYS.QUIZ_LEVELS, levelsUrl);
     this.load.json(DATA_CACHE_KEYS.QUIZ_SETS, quizSetsUrl);
     this.load.image(DATA_CACHE_KEYS.WORLD_RELIEF, worldReliefUrl);
+    this.load.audio(AUDIO_ASSET_KEYS.ROTOR_LOOP, rotorLoopUrl);
+    this.load.audio(AUDIO_ASSET_KEYS.FOUND, foundSoundUrl);
+    this.load.audio(AUDIO_ASSET_KEYS.WIN, winSoundUrl);
+    this.load.audio(AUDIO_ASSET_KEYS.LOSS, lossSoundUrl);
 
     this.load.on(Phaser.Loader.Events.PROGRESS, (value) => {
       loadingText.setText(`Kaart laden… ${Math.round(value * 100)}%`);
@@ -82,6 +91,7 @@ export default class PreloadScene extends Phaser.Scene {
   }
 
   create() {
+    getAudioManager().setSoundManager(this.sound);
     this.scene.start('QuizSelectionScene');
   }
 }

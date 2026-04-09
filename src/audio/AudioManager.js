@@ -2,6 +2,13 @@ import { AIRWOLF_ROTOR_REFERENCE, ROTOR_HOVER } from './audioProfiles.js';
 
 let _instance = null;
 
+export const AUDIO_ASSET_KEYS = Object.freeze({
+  ROTOR_LOOP: 'audio-rotor-loop',
+  FOUND: 'audio-found',
+  WIN: 'audio-win',
+  LOSS: 'audio-loss',
+});
+
 /**
  * Returns the shared AudioManager singleton.
  * Calling this does NOT create an AudioContext — that only happens on the first
@@ -16,103 +23,70 @@ export function getAudioManager() {
 
 export class AudioManager {
   constructor() {
-    this._ctx             = null;
-    this._rotorNodes      = null; // { source, filter, masterGain }
-    this._rotorRequested  = false;
-    this._warnedUnsupported = false;
-    this._unlockPromise   = null;
-    this._pendingTones    = []; // { tones, expireAt } items queued before context is running
-  }
-
-  // ── Internal helpers ──────────────────────────────────────────────────────
-
-  _ensureContext() {
-    if (this._ctx && this._ctx.state !== 'closed') return this._ctx;
-
-    const Ctor =
-      typeof window !== 'undefined'
-        ? (window.AudioContext ?? window.webkitAudioContext)
-        : null;
-
-    if (!Ctor) {
-      if (!this._warnedUnsupported && typeof console !== 'undefined') {
-        console.warn('Web Audio API is unavailable; audio is disabled.');
-        this._warnedUnsupported = true;
-      }
-      return null;
-    }
-
-    this._ctx = new Ctor();
-    return this._ctx;
-  }
-
-  /**
-   * Synthesise one blade-chop cycle as a PCM buffer.
-   *
-   * Buffer duration = 1 / AIRWOLF_ROTOR_REFERENCE.chopHz (≈ 0.148 s), so
-   * looping at playbackRate = 1.0 reproduces exactly the Airwolf reference
-   * chop cadence.  Increasing playbackRate raises both the chop rate and the
-   * blade-tone pitch together, which matches real-helicopter behaviour.
-   *
-   * The signal is shaped as a sharp impact transient (≈35 ms) plus a shorter
-   * resonant body, layered over tonal components at the Airwolf fundamental
-   * (A#1, 58.27 Hz) and its harmonics.  A small noise burst adds turbulence
-   * character without overwhelming the tonal content.
-   *
-   * @param {AudioContext} ctx
-   * @returns {AudioBuffer}
-   */
-  _createRotorChopBuffer(ctx) {
-    const sr       = ctx.sampleRate;
-    const duration = 1 / AIRWOLF_ROTOR_REFERENCE.chopHz; // ≈ 0.148 s
-    const len      = Math.floor(sr * duration);
-    const buf      = ctx.createBuffer(1, len, sr);
-    const ch       = buf.getChannelData(0);
-
-    const f1 = ROTOR_HOVER.freq; // A#1 ≈ 58.27 Hz
-
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-
-      // Two-stage amplitude envelope
-      const impact = Math.exp(-t * 28);          // fast attack, dies in ~35 ms
-      const body   = Math.exp(-t *  9) * 0.30;  // lingering resonance ~80 ms
-
-      // Harmonic series from MIDI-derived fundamental; 3rd partial is slightly
-      // detuned (+0.1 semitone) to avoid the overly-clean sound of integer ratios
-      const tone =
-        Math.sin(2 * Math.PI * f1       * t) * 0.55 +
-        Math.sin(2 * Math.PI * f1 * 2   * t) * 0.28 +
-        Math.sin(2 * Math.PI * f1 * 3.1 * t) * 0.12;
-
-      const noise = Math.random() * 2 - 1;
-
-      ch[i] = tone  * (impact * 0.65 + body * 0.35) +
-              noise * (impact * 0.20 + body * 0.05);
-    }
-
-    return buf;
+    this._soundManager = null;
+    this._rotorSound = null;
+    this._rotorRequested = false;
+    this._warnedUnavailable = false;
+    this._unlockPromise = null;
+    this._pendingSounds = [];
+    this._rotorProfile = ROTOR_HOVER;
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
+  setSoundManager(soundManager) {
+    if (!soundManager || this._soundManager === soundManager) {
+      return;
+    }
+
+    this._soundManager = soundManager;
+
+    if (this.isReady()) {
+      if (this._rotorRequested) {
+        this.startRotorLoop();
+      }
+      this._flushPendingSounds();
+    }
+  }
+
+  _getContext() {
+    return this._soundManager?.context ?? null;
+  }
+
+  _hasAudioAsset(key) {
+    return this._soundManager?.game?.cache?.audio?.has?.(key) ?? false;
+  }
+
+  _warnUnavailable() {
+    if (this._warnedUnavailable || typeof console === 'undefined') {
+      return;
+    }
+
+    console.warn('Phaser audio is unavailable; audio is disabled.');
+    this._warnedUnavailable = true;
+  }
+
+  _onReady() {
+    if (this._rotorRequested) {
+      this.startRotorLoop();
+    }
+    this._flushPendingSounds();
+  }
+
   /**
-   * Create / resume the AudioContext.
-   * MUST be called from a user-gesture handler to satisfy iOS Safari autoplay policy.
+   * Resume Phaser audio on first gesture.
    *
-   * @returns {Promise<boolean>} True once the context is running, false on failure.
+   * @returns {Promise<boolean>} True once audio is ready, false on failure.
    */
   unlock() {
-    const ctx = this._ensureContext();
-    if (!ctx) return Promise.resolve(false);
+    const soundManager = this._soundManager;
+    if (!soundManager || soundManager.noAudio === true) {
+      this._warnUnavailable();
+      return Promise.resolve(false);
+    }
 
-    const onRunning = () => {
-      if (this._rotorRequested) this.startRotorLoop();
-      this._flushPendingTones();
-    };
-
-    if (ctx.state === 'running') {
-      onRunning();
+    if (this.isReady()) {
+      this._onReady();
       return Promise.resolve(true);
     }
 
@@ -120,44 +94,41 @@ export class AudioManager {
       return this._unlockPromise;
     }
 
+    const context = this._getContext();
     let resumePromise;
+
     try {
-      resumePromise = Promise.resolve(ctx.resume());
+      if (context && (context.state === 'suspended' || context.state === 'interrupted')) {
+        resumePromise = Promise.resolve(context.resume());
+      } else {
+        if (typeof soundManager.unlock === 'function' && soundManager.locked === true) {
+          soundManager.unlock();
+        }
+        resumePromise = Promise.resolve();
+      }
     } catch (error) {
       if (typeof console !== 'undefined') {
-        console.warn('Unable to resume audio context.', error);
+        console.warn('Unable to unlock Phaser audio.', error);
       }
       return Promise.resolve(false);
     }
 
     this._unlockPromise = resumePromise
       .then(() => {
-        if (ctx.state === 'running') {
-          onRunning();
+        if (context && context.state === 'running') {
+          soundManager.locked = false;
+        }
+
+        if (soundManager.locked !== true && (!context || context.state === 'running')) {
+          this._onReady();
           return true;
         }
 
-        // iOS Safari may resolve resume() but leave the context suspended.
-        // Schedule one more attempt after a short delay as a best-effort fallback.
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            if (ctx.state === 'running') {
-              onRunning();
-              resolve(true);
-              return;
-            }
-            Promise.resolve(ctx.resume())
-              .then(() => {
-                if (ctx.state === 'running') onRunning();
-                resolve(ctx.state === 'running');
-              })
-              .catch(() => resolve(false));
-          }, 100);
-        });
+        return false;
       })
       .catch((error) => {
         if (typeof console !== 'undefined') {
-          console.warn('Unable to resume audio context.', error);
+          console.warn('Unable to unlock Phaser audio.', error);
         }
         return false;
       })
@@ -170,7 +141,13 @@ export class AudioManager {
 
   /** True when the AudioContext is live and able to produce sound. */
   isReady() {
-    return this._ctx?.state === 'running';
+    const soundManager = this._soundManager;
+    if (!soundManager || soundManager.noAudio === true || soundManager.locked === true) {
+      return false;
+    }
+
+    const context = this._getContext();
+    return !context || context.state === 'running';
   }
 
   // ── Rotor loop ────────────────────────────────────────────────────────────
@@ -182,33 +159,18 @@ export class AudioManager {
    */
   startRotorLoop() {
     this._rotorRequested = true;
-    if (this._rotorNodes) return;
-    const ctx = this._ctx;
-    if (!ctx || ctx.state !== 'running') return;
+    if (this._rotorSound || !this.isReady() || !this._hasAudioAsset(AUDIO_ASSET_KEYS.ROTOR_LOOP)) {
+      return;
+    }
 
-    // Loop a single synthesised blade-chop cycle
-    const chopBuf = this._createRotorChopBuffer(ctx);
-    const source  = ctx.createBufferSource();
-    source.buffer           = chopBuf;
-    source.loop             = true;
-    source.playbackRate.value = 1.0; // 1.0 = Airwolf hover baseline
+    this._rotorSound = this._soundManager.add(AUDIO_ASSET_KEYS.ROTOR_LOOP, {
+      loop: true,
+      volume: ROTOR_HOVER.gain,
+      rate: 1,
+    });
 
-    // Gentle low-pass to round off the high-frequency edge of the noise burst
-    const filter = ctx.createBiquadFilter();
-    filter.type            = 'lowpass';
-    filter.frequency.value = ROTOR_HOVER.noiseFilterFreq;
-
-    const masterGain = ctx.createGain();
-    masterGain.gain.value  = 0; // ramped to hover gain by setRotorProfile below
-
-    source.connect(filter);
-    filter.connect(masterGain);
-    masterGain.connect(ctx.destination);
-
-    source.start();
-
-    this._rotorNodes = { source, filter, masterGain };
-    this.setRotorProfile(ROTOR_HOVER);
+    this._rotorSound?.play();
+    this.setRotorProfile(this._rotorProfile);
   }
 
   /**
@@ -223,132 +185,120 @@ export class AudioManager {
    * @param {number}        [gain]         Gain (only used in legacy two-arg form).
    */
   setRotorProfile(profileOrFreq, gain) {
-    const ctx = this._ctx;
-    if (!ctx || !this._rotorNodes) return;
-    const now = ctx.currentTime;
-    const TAU = 0.25; // time constant in seconds (~63% reached in 0.25 s)
-    const scheduleTarget = (param, value) => {
-      if (!Number.isFinite(Number(value))) return;
-      if (typeof param.cancelAndHoldAtTime === 'function') {
-        param.cancelAndHoldAtTime(now);
-      } else {
-        param.cancelScheduledValues(now);
-      }
-      param.setTargetAtTime(Number(value), now, TAU);
-    };
-
     const profile =
       typeof profileOrFreq === 'object' && profileOrFreq !== null
         ? profileOrFreq
         : {
-            chopHz:         Number(profileOrFreq),
-            gain:           gain,
+            chopHz: Number(profileOrFreq),
+            gain,
             noiseFilterFreq: ROTOR_HOVER.noiseFilterFreq,
           };
+
+    this._rotorProfile = profile;
+
+    if (!this._rotorSound) return;
+
+    const context = this._getContext();
+    const now = context?.currentTime ?? 0;
+    const scheduleTarget = (param, value) => {
+      if (!param || !Number.isFinite(Number(value))) return;
+      if (typeof param.cancelAndHoldAtTime === 'function') {
+        param.cancelAndHoldAtTime(now);
+      } else if (typeof param.cancelScheduledValues === 'function') {
+        param.cancelScheduledValues(now);
+      }
+      if (typeof param.setTargetAtTime === 'function') {
+        param.setTargetAtTime(Number(value), now, 0.25);
+      }
+    };
 
     // Normalise chop rate to the Airwolf reference cadence so that
     // playbackRate = 1.0 at hover and scales proportionally with speed.
     const rate = (profile.chopHz ?? ROTOR_HOVER.chopHz) / AIRWOLF_ROTOR_REFERENCE.chopHz;
-    scheduleTarget(this._rotorNodes.source.playbackRate, rate);
-    scheduleTarget(this._rotorNodes.masterGain.gain, profile.gain);
-    if (profile.noiseFilterFreq != null) {
-      scheduleTarget(this._rotorNodes.filter.frequency, profile.noiseFilterFreq);
+
+    const playbackRateParam =
+      this._rotorSound.source?.playbackRate ?? this._rotorSound.loopSource?.playbackRate ?? null;
+    const volumeParam = this._rotorSound.volumeNode?.gain ?? null;
+
+    if (playbackRateParam && volumeParam) {
+      scheduleTarget(playbackRateParam, rate);
+      scheduleTarget(volumeParam, profile.gain ?? ROTOR_HOVER.gain);
+      return;
     }
+
+    this._rotorSound.setRate?.(rate);
+    this._rotorSound.setVolume?.(profile.gain ?? ROTOR_HOVER.gain);
   }
 
   /** Disconnect and discard all rotor nodes. */
   stopRotorLoop() {
     this._rotorRequested = false;
-    if (!this._rotorNodes) return;
-    const { source, filter, masterGain } = this._rotorNodes;
-    try { source.stop(); } catch (_) { /* already stopped */ }
-    source.disconnect();
-    filter.disconnect();
-    masterGain.disconnect();
-    this._rotorNodes = null;
+    if (!this._rotorSound) return;
+
+    try {
+      this._rotorSound.stop?.();
+    } catch (_) {
+      // Phaser may already have stopped the sound.
+    }
+
+    this._rotorSound.destroy?.();
+    this._rotorSound = null;
   }
 
   // ── One-shot events ───────────────────────────────────────────────────────
 
   /** Short ascending two-tone chime: target located. */
   playFoundSound() {
-    this._playTonesWhenReady([
-      { freq: 880,  startDelay: 0,    duration: 0.12, gain: 0.25 },
-      { freq: 1320, startDelay: 0.10, duration: 0.18, gain: 0.25 },
-    ]);
+    this._playSoundWhenReady(AUDIO_ASSET_KEYS.FOUND);
   }
 
   /** Ascending three-note fanfare: all targets found (win). */
   playWinSound() {
-    this._playTonesWhenReady([
-      { freq: 523, startDelay: 0,    duration: 0.15, gain: 0.28 },
-      { freq: 659, startDelay: 0.15, duration: 0.15, gain: 0.28 },
-      { freq: 784, startDelay: 0.30, duration: 0.35, gain: 0.30 },
-    ]);
+    this._playSoundWhenReady(AUDIO_ASSET_KEYS.WIN);
   }
 
   /** Descending two-note tone: time ran out (loss). */
   playLossSound() {
-    this._playTonesWhenReady([
-      { freq: 440, startDelay: 0,    duration: 0.22, gain: 0.25 },
-      { freq: 294, startDelay: 0.22, duration: 0.45, gain: 0.22 },
-    ]);
+    this._playSoundWhenReady(AUDIO_ASSET_KEYS.LOSS);
   }
 
   /**
    * Play tones immediately if the context is running, otherwise queue them for
    * the next successful unlock (discarded if not played within 2 seconds).
    *
-   * @param {Array<{freq: number, startDelay: number, duration: number, gain: number}>} tones
+   * @param {string} key
    */
-  _playTonesWhenReady(tones) {
+  _playSoundWhenReady(key) {
     if (this.isReady()) {
-      this._playTones(tones);
+      this._playSound(key);
       return;
     }
-    this._pendingTones.push({ tones, expireAt: Date.now() + 2000 });
+    this._pendingSounds.push({ key, expireAt: Date.now() + 2000 });
   }
 
-  /** Play all non-expired queued tones. Called after the context transitions to running. */
-  _flushPendingTones() {
-    if (!this.isReady() || this._pendingTones.length === 0) return;
+  /** Play all non-expired queued sounds. Called after audio becomes ready. */
+  _flushPendingSounds() {
+    if (!this.isReady() || this._pendingSounds.length === 0) return;
     const now = Date.now();
-    const pending = this._pendingTones;
-    this._pendingTones = [];
-    for (const { tones, expireAt } of pending) {
+    const pending = this._pendingSounds;
+    this._pendingSounds = [];
+    for (const { key, expireAt } of pending) {
       if (expireAt > now) {
-        this._playTones(tones);
+        this._playSound(key);
       }
     }
   }
 
   /**
-   * Schedule a sequence of sine-wave tones via the Web Audio API.
-   * Silently does nothing when the context is not in the 'running' state.
+   * Play a cached Phaser audio asset if available.
    *
-   * @param {Array<{freq: number, startDelay: number, duration: number, gain: number}>} tones
+   * @param {string} key
    */
-  _playTones(tones) {
-    const ctx = this._ctx;
-    if (!ctx || ctx.state !== 'running') return;
-    const now = ctx.currentTime;
-    for (const { freq, startDelay, duration, gain: peakGain } of tones) {
-      const gainNode = ctx.createGain();
-      gainNode.gain.setValueAtTime(0, now + startDelay);
-      gainNode.gain.linearRampToValueAtTime(peakGain, now + startDelay + 0.01);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, now + startDelay + duration);
-      gainNode.connect(ctx.destination);
-
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      osc.connect(gainNode);
-      osc.onended = () => {
-        osc.disconnect();
-        gainNode.disconnect();
-      };
-      osc.start(now + startDelay);
-      osc.stop(now + startDelay + duration + 0.02);
+  _playSound(key) {
+    if (!this.isReady() || !this._hasAudioAsset(key)) {
+      return;
     }
+
+    this._soundManager.play?.(key);
   }
 }

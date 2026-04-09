@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Milestone 2 interactive map for a Phaser remake of Nederlandse Topografie.",
+  "description": "A mobile-friendly Phaser topography quiz game.",
   "engines": {
     "node": ">=18.18.0"
   },
@@ -11,7 +11,8 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate:audio": "node scripts/generateAudioAssets.mjs"
   },
   "dependencies": {
     "phaser": "^3.70.0",

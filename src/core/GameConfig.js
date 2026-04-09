@@ -10,7 +10,6 @@ import {
   getWindowMetrics,
 } from './runtimeDebug.js';
 import { getAudioManager } from '../audio/AudioManager.js';
-import { isWebKitBrowser } from './browser.js';
 
 const DEFAULT_VIEWPORT = {
   width: 390,
@@ -44,7 +43,6 @@ const readResolution = () => {
 
 const initialViewport = readInitialViewport();
 const initialResolution = readResolution();
-const disablePhaserAudio = isWebKitBrowser();
 
 debugLog('CONFIG', 'Resolved initial game viewport', {
   initialViewport,
@@ -84,9 +82,8 @@ const gameConfig = {
       preventDefaultWheel: true
     }
   },
-  // Phaser audio is unused; disable its sound manager on WebKit to avoid extra setup.
   audio: {
-    noAudio: disablePhaserAudio,
+    noAudio: false,
   },
   render: {
     antialias: true,
@@ -103,6 +100,7 @@ const gameConfig = {
       game.canvas.style.display = 'block';
       game.canvas.style.width = '100%';
       game.canvas.style.height = '100%';
+      getAudioManager().setSoundManager(game.sound);
 
       // iOS Safari / mobile Edge: Phaser's touch capture can swallow events
       // before they reach document-level bootstrap listeners. Attach directly

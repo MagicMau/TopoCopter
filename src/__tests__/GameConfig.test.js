@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const { getAudioManager } = vi.hoisted(() => ({
+  getAudioManager: vi.fn(() => ({
+    setSoundManager: vi.fn(),
+    unlock: vi.fn(),
+  })),
+}));
+
 vi.mock('phaser', () => ({
   default: {
     AUTO: 0,
@@ -36,6 +43,10 @@ vi.mock('../core/runtimeDebug.js', () => ({
   getWindowMetrics: vi.fn(() => ({})),
 }));
 
+vi.mock('../audio/AudioManager.js', () => ({
+  getAudioManager,
+}));
+
 const makeWindow = (options = {}) => ({
   innerWidth: 390,
   innerHeight: 844,
@@ -51,7 +62,7 @@ describe('gameConfig audio setup', () => {
     vi.clearAllMocks();
   });
 
-  it('disables Phaser audio on WebKit browsers', async () => {
+  it('keeps Phaser audio enabled on WebKit browsers', async () => {
     vi.stubGlobal(
       'window',
       makeWindow({
@@ -61,14 +72,27 @@ describe('gameConfig audio setup', () => {
 
     const { default: gameConfig } = await import('../core/GameConfig.js');
 
-    expect(gameConfig.audio.noAudio).toBe(true);
+    expect(gameConfig.audio.noAudio).toBe(false);
   });
 
-  it('keeps Phaser audio enabled on non-WebKit browsers', async () => {
+  it('registers the Phaser sound manager during postBoot', async () => {
     vi.stubGlobal('window', makeWindow());
 
     const { default: gameConfig } = await import('../core/GameConfig.js');
+    const audioManager = {
+      setSoundManager: vi.fn(),
+      unlock: vi.fn(),
+    };
+    getAudioManager.mockReturnValue(audioManager);
+    const game = {
+      sound: { key: 'sound-manager' },
+      canvas: { style: {}, addEventListener: vi.fn() },
+      scale: {},
+      config: { resolution: 2 },
+    };
 
-    expect(gameConfig.audio.noAudio).toBe(false);
+    gameConfig.callbacks.postBoot(game);
+
+    expect(audioManager.setSoundManager).toHaveBeenCalledWith(game.sound);
   });
 });

@@ -1,395 +1,251 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AudioManager } from '../audio/AudioManager.js';
-import { AIRWOLF_ROTOR_REFERENCE, ROTOR_HOVER, ROTOR_FLY } from '../audio/audioProfiles.js';
-
-// ── Minimal Web Audio mock ────────────────────────────────────────────────────
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AudioManager, AUDIO_ASSET_KEYS } from '../audio/AudioManager.js';
+import { AIRWOLF_ROTOR_REFERENCE, ROTOR_FLY, ROTOR_HOVER } from '../audio/audioProfiles.js';
 
 function makeAudioParam(initial = 0) {
-  const p = {
+  return {
     value: initial,
     cancelAndHoldAtTime: vi.fn(),
     cancelScheduledValues: vi.fn(),
     setTargetAtTime: vi.fn(),
-    setValueAtTime: vi.fn(),
-    linearRampToValueAtTime: vi.fn(),
-    exponentialRampToValueAtTime: vi.fn(),
   };
-  return p;
 }
 
-function makeNode(extras = {}) {
-  return { connect: vi.fn(), disconnect: vi.fn(), ...extras };
-}
-
-function makeMockContext(state = 'running') {
-  const sampleRate = 44100;
-
-  const source = makeNode({
-    start: vi.fn(),
+function makeRotorSound() {
+  return {
+    play: vi.fn(),
     stop: vi.fn(),
-    loop: false,
-    buffer: null,
-    playbackRate: makeAudioParam(1),
-  });
-
-  const filter = makeNode({
-    type: 'lowpass',
-    frequency: makeAudioParam(1000),
-    Q: makeAudioParam(1),
-  });
-
-  const gainNode = makeNode({ gain: makeAudioParam(0) });
-  const oscNode  = makeNode({
-    start: vi.fn(),
-    stop: vi.fn(),
-    frequency: makeAudioParam(440),
-    type: 'sine',
-  });
-
-  const ctx = {
-    state,
-    sampleRate,
-    currentTime: 0,
-    destination: {},
-    createBufferSource: vi.fn(() => ({
-      ...source,
-      connect: vi.fn(),
-      disconnect: vi.fn(),
+    destroy: vi.fn(),
+    setRate: vi.fn(),
+    setVolume: vi.fn(),
+    source: {
       playbackRate: makeAudioParam(1),
-    })),
-    createBuffer: vi.fn((channels, length, sr) => ({
-      getChannelData: vi.fn(() => new Float32Array(length)),
-    })),
-    createBiquadFilter: vi.fn(() => ({
-      ...filter,
-      connect: vi.fn(),
-      disconnect: vi.fn(),
-      frequency: makeAudioParam(1000),
-      Q: makeAudioParam(1),
-    })),
-    createGain: vi.fn(() => ({
-      ...gainNode,
-      connect: vi.fn(),
-      disconnect: vi.fn(),
-      gain: makeAudioParam(0),
-    })),
-    createOscillator: vi.fn(() => ({
-      ...oscNode,
-      connect: vi.fn(),
-      disconnect: vi.fn(),
-      frequency: makeAudioParam(440),
-    })),
-    resume: vi.fn(() => Promise.resolve()),
+    },
+    volumeNode: {
+      gain: makeAudioParam(ROTOR_HOVER.gain),
+    },
   };
-
-  return ctx;
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+function makeSoundManager({ locked = false, state = 'running', hasAssets = true } = {}) {
+  const sound = makeRotorSound();
+  const context = {
+    state,
+    currentTime: 12,
+    resume: vi.fn(() => {
+      context.state = 'running';
+      return Promise.resolve();
+    }),
+  };
 
-describe('AudioManager._createRotorChopBuffer', () => {
-  it('returns a buffer whose length matches 1 / chopHz * sampleRate', () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext();
-    am._createRotorChopBuffer(ctx);
+  const soundManager = {
+    locked,
+    unlocked: false,
+    noAudio: false,
+    context,
+    game: {
+      cache: {
+        audio: {
+          has: vi.fn(() => hasAssets),
+        },
+      },
+    },
+    add: vi.fn(() => sound),
+    play: vi.fn(),
+    unlock: vi.fn(),
+  };
 
-    const expectedLen = Math.floor(ctx.sampleRate / AIRWOLF_ROTOR_REFERENCE.chopHz);
-    expect(ctx.createBuffer).toHaveBeenCalledWith(1, expectedLen, ctx.sampleRate);
-  });
+  return { soundManager, sound, context };
+}
 
-  it('fills the channel data array', () => {
-    const am  = new AudioManager();
-    const sr  = 44100;
-    const len = Math.floor(sr / AIRWOLF_ROTOR_REFERENCE.chopHz);
+function createManager(options) {
+  const manager = new AudioManager();
+  const { soundManager, sound, context } = makeSoundManager(options);
+  manager.setSoundManager(soundManager);
+  return { manager, soundManager, sound, context };
+}
 
-    let writtenData;
-    const ctx = makeMockContext();
-    ctx.createBuffer = vi.fn(() => {
-      const data = new Float32Array(len);
-      writtenData = data;
-      return { getChannelData: vi.fn(() => data) };
-    });
-
-    am._createRotorChopBuffer(ctx);
-
-    // Data should not be all zeros after the synthesis loop
-    const nonZero = writtenData.some((v) => v !== 0);
-    expect(nonZero).toBe(true);
-  });
-
-  it('keeps sample amplitudes within ±1', () => {
-    // Run several times since the noise component is random
-    for (let run = 0; run < 5; run += 1) {
-      const am  = new AudioManager();
-      const sr  = 44100;
-      const len = Math.floor(sr / AIRWOLF_ROTOR_REFERENCE.chopHz);
-      let writtenData;
-      const ctx = makeMockContext();
-      ctx.createBuffer = vi.fn(() => {
-        const data = new Float32Array(len);
-        writtenData = data;
-        return { getChannelData: vi.fn(() => data) };
-      });
-
-      am._createRotorChopBuffer(ctx);
-
-      const maxAbs = Math.max(...writtenData.map(Math.abs));
-      expect(maxAbs).toBeLessThanOrEqual(1.0);
-    }
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
 });
 
 describe('AudioManager.startRotorLoop', () => {
-  it('creates source, filter, and gain nodes when context is running', () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('running');
-    am._ctx = ctx;
+  it('creates and plays a looping Phaser sound when audio is ready', () => {
+    const { manager, soundManager, sound } = createManager();
 
-    am.startRotorLoop();
+    manager.startRotorLoop();
 
-    expect(ctx.createBufferSource).toHaveBeenCalledOnce();
-    expect(ctx.createBiquadFilter).toHaveBeenCalledOnce();
-    expect(ctx.createGain).toHaveBeenCalled();
+    expect(soundManager.add).toHaveBeenCalledWith(
+      AUDIO_ASSET_KEYS.ROTOR_LOOP,
+      expect.objectContaining({ loop: true, rate: 1, volume: ROTOR_HOVER.gain }),
+    );
+    expect(sound.play).toHaveBeenCalledOnce();
   });
 
-  it('is idempotent — calling twice does not create extra nodes', () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('running');
-    am._ctx = ctx;
+  it('is idempotent when called repeatedly', () => {
+    const { manager, soundManager } = createManager();
 
-    am.startRotorLoop();
-    am.startRotorLoop();
+    manager.startRotorLoop();
+    manager.startRotorLoop();
 
-    expect(ctx.createBufferSource).toHaveBeenCalledOnce();
+    expect(soundManager.add).toHaveBeenCalledTimes(1);
   });
 
-  it('does nothing when context is not running', () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('suspended');
-    am._ctx = ctx;
+  it('does not create a rotor sound before audio is unlocked', () => {
+    const { manager, soundManager } = createManager({ locked: true, state: 'suspended' });
 
-    am.startRotorLoop();
+    manager.startRotorLoop();
 
-    expect(ctx.createBufferSource).not.toHaveBeenCalled();
-    expect(am._rotorNodes).toBeNull();
-  });
-
-  it('does not create an AudioContext before unlock is called', () => {
-    const am = new AudioManager();
-    const audioCtor = vi.fn(() => makeMockContext('running'));
-    vi.stubGlobal('window', { AudioContext: audioCtor });
-
-    am.startRotorLoop();
-
-    expect(audioCtor).not.toHaveBeenCalled();
-    expect(am._rotorRequested).toBe(true);
-    expect(am._rotorNodes).toBeNull();
-
-    vi.unstubAllGlobals();
-  });
-
-  it('sets loop = true on the buffer source', () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('running');
-    am._ctx = ctx;
-
-    let capturedSource;
-    ctx.createBufferSource = vi.fn(() => {
-      capturedSource = {
-        connect: vi.fn(), disconnect: vi.fn(),
-        start: vi.fn(), stop: vi.fn(),
-        loop: false,
-        buffer: null,
-        playbackRate: makeAudioParam(1),
-      };
-      return capturedSource;
-    });
-
-    am.startRotorLoop();
-
-    expect(capturedSource.loop).toBe(true);
+    expect(soundManager.add).not.toHaveBeenCalled();
+    expect(manager._rotorRequested).toBe(true);
+    expect(manager._rotorSound).toBeNull();
   });
 });
 
 describe('AudioManager.setRotorProfile', () => {
-  function setupRunningManager() {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('running');
-    am._ctx = ctx;
-    am.startRotorLoop();
-    // Clear call counts from startRotorLoop's own setRotorProfile call
+  it('schedules playbackRate from the target chop cadence', () => {
+    const { manager, sound } = createManager();
+    manager.startRotorLoop();
     vi.clearAllMocks();
-    return { am, ctx };
-  }
 
-  it('schedules playbackRate as chopHz / AIRWOLF_ROTOR_REFERENCE.chopHz', () => {
-    const { am } = setupRunningManager();
+    manager.setRotorProfile({ chopHz: ROTOR_FLY.chopHz, gain: 0.2 });
 
-    const targetChopHz = ROTOR_FLY.chopHz;
-    am.setRotorProfile({ chopHz: targetChopHz, gain: 0.2, noiseFilterFreq: 800 });
-
-    const expectedRate = targetChopHz / AIRWOLF_ROTOR_REFERENCE.chopHz;
-    const rateParam = am._rotorNodes.source.playbackRate;
-    expect(rateParam.setTargetAtTime).toHaveBeenCalledWith(
-      expect.closeTo(expectedRate, 5),
-      expect.any(Number),
-      expect.any(Number),
+    expect(sound.source.playbackRate.setTargetAtTime).toHaveBeenCalledWith(
+      expect.closeTo(ROTOR_FLY.chopHz / AIRWOLF_ROTOR_REFERENCE.chopHz, 5),
+      12,
+      0.25,
     );
   });
 
-  it('at hover profile, playbackRate is exactly 1.0', () => {
-    const { am } = setupRunningManager();
+  it('schedules rotor gain from the profile', () => {
+    const { manager, sound } = createManager();
+    manager.startRotorLoop();
+    vi.clearAllMocks();
 
-    am.setRotorProfile(ROTOR_HOVER);
+    manager.setRotorProfile({ chopHz: ROTOR_HOVER.chopHz, gain: 0.42 });
 
-    const rateParam = am._rotorNodes.source.playbackRate;
-    expect(rateParam.setTargetAtTime).toHaveBeenCalledWith(
-      1.0,
-      expect.any(Number),
-      expect.any(Number),
+    expect(sound.volumeNode.gain.setTargetAtTime).toHaveBeenCalledWith(0.42, 12, 0.25);
+  });
+
+  it('falls back to Phaser setters when direct audio params are unavailable', () => {
+    const { manager, soundManager } = createManager();
+    const fallbackSound = {
+      play: vi.fn(),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      setRate: vi.fn(),
+      setVolume: vi.fn(),
+    };
+    soundManager.add.mockReturnValue(fallbackSound);
+
+    manager.startRotorLoop();
+    vi.clearAllMocks();
+
+    manager.setRotorProfile(ROTOR_FLY);
+
+    expect(fallbackSound.setRate).toHaveBeenCalledWith(
+      ROTOR_FLY.chopHz / AIRWOLF_ROTOR_REFERENCE.chopHz,
     );
-  });
-
-  it('at fly profile, playbackRate is > 1.0', () => {
-    const { am } = setupRunningManager();
-
-    am.setRotorProfile(ROTOR_FLY);
-
-    const rateParam = am._rotorNodes.source.playbackRate;
-    const [[rate]] = rateParam.setTargetAtTime.mock.calls;
-    expect(rate).toBeGreaterThan(1.0);
-  });
-
-  it('schedules gain from the profile', () => {
-    const { am } = setupRunningManager();
-
-    am.setRotorProfile({ chopHz: ROTOR_HOVER.chopHz, gain: 0.42, noiseFilterFreq: 700 });
-
-    const gainParam = am._rotorNodes.masterGain.gain;
-    expect(gainParam.setTargetAtTime).toHaveBeenCalledWith(
-      0.42,
-      expect.any(Number),
-      expect.any(Number),
-    );
-  });
-
-  it('is a no-op when _rotorNodes is null', () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('running');
-    am._ctx = ctx;
-    // Do NOT call startRotorLoop — nodes are null
-
-    expect(() => am.setRotorProfile(ROTOR_HOVER)).not.toThrow();
+    expect(fallbackSound.setVolume).toHaveBeenCalledWith(ROTOR_FLY.gain);
   });
 });
 
 describe('AudioManager.stopRotorLoop', () => {
-  it('disconnects all nodes and nulls _rotorNodes', () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('running');
-    am._ctx = ctx;
-    am.startRotorLoop();
+  it('stops and destroys the rotor sound', () => {
+    const { manager, sound } = createManager();
+    manager.startRotorLoop();
 
-    const { source, filter, masterGain } = am._rotorNodes;
-    am.stopRotorLoop();
+    manager.stopRotorLoop();
 
-    expect(source.disconnect).toHaveBeenCalled();
-    expect(filter.disconnect).toHaveBeenCalled();
-    expect(masterGain.disconnect).toHaveBeenCalled();
-    expect(am._rotorNodes).toBeNull();
+    expect(sound.stop).toHaveBeenCalledOnce();
+    expect(sound.destroy).toHaveBeenCalledOnce();
+    expect(manager._rotorSound).toBeNull();
   });
 
-  it('is safe to call when no loop is running', () => {
-    const am = new AudioManager();
-    expect(() => am.stopRotorLoop()).not.toThrow();
-  });
-
-  it('handles source.stop() throwing without propagating', () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('running');
-    am._ctx = ctx;
-    am.startRotorLoop();
-
-    am._rotorNodes.source.stop = vi.fn(() => { throw new Error('already stopped'); });
-
-    expect(() => am.stopRotorLoop()).not.toThrow();
-    expect(am._rotorNodes).toBeNull();
+  it('is safe when no rotor sound exists', () => {
+    const { manager } = createManager();
+    expect(() => manager.stopRotorLoop()).not.toThrow();
   });
 });
 
 describe('AudioManager.unlock', () => {
-  it('resumes a suspended context and starts a pending rotor loop', async () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('suspended');
+  it('resumes a suspended Phaser audio context and starts a pending rotor loop', async () => {
+    const { manager, soundManager, context } = createManager({ locked: true, state: 'suspended' });
     let resolveResume;
-    ctx.resume = vi.fn(
-      () =>
-        new Promise((resolve) => {
-          resolveResume = () => {
-            ctx.state = 'running';
-            resolve();
-          };
-        }),
-    );
+    context.resume = vi.fn(() => new Promise((resolve) => {
+      resolveResume = () => {
+        context.state = 'running';
+        resolve();
+      };
+    }));
 
-    am._ctx = ctx;
-    am._rotorRequested = true;
+    manager.startRotorLoop();
+    const unlockPromise = manager.unlock();
 
-    const unlockPromise = am.unlock();
-
-    expect(ctx.createBufferSource).not.toHaveBeenCalled();
+    expect(soundManager.add).not.toHaveBeenCalled();
 
     resolveResume();
-
     await expect(unlockPromise).resolves.toBe(true);
 
-    expect(ctx.resume).toHaveBeenCalledOnce();
-    expect(ctx.createBufferSource).toHaveBeenCalledOnce();
-    expect(am.isReady()).toBe(true);
+    expect(context.resume).toHaveBeenCalledOnce();
+    expect(soundManager.add).toHaveBeenCalledOnce();
+    expect(manager.isReady()).toBe(true);
   });
 
-  it('coalesces repeated unlock calls while a resume is pending', async () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('suspended');
-
+  it('coalesces repeated unlock calls while resume is pending', async () => {
+    const { manager, context } = createManager({ locked: true, state: 'suspended' });
     let resolveResume;
-    ctx.resume = vi.fn(
-      () =>
-        new Promise((res) => {
-          resolveResume = () => {
-            ctx.state = 'running';
-            res();
-          };
-        }),
-    );
+    context.resume = vi.fn(() => new Promise((resolve) => {
+      resolveResume = () => {
+        context.state = 'running';
+        resolve();
+      };
+    }));
 
-    am._ctx = ctx;
+    const first = manager.unlock();
+    const second = manager.unlock();
 
-    const firstUnlock = am.unlock();
-    const secondUnlock = am.unlock();
-
-    expect(ctx.resume).toHaveBeenCalledTimes(1);
-    expect(secondUnlock).toBe(firstUnlock);
+    expect(first).toBe(second);
+    expect(context.resume).toHaveBeenCalledTimes(1);
 
     resolveResume();
+    await expect(first).resolves.toBe(true);
+  });
+});
 
-    await expect(firstUnlock).resolves.toBe(true);
-    await expect(secondUnlock).resolves.toBe(true);
+describe('AudioManager cue playback', () => {
+  it('plays found, win, and loss sounds through Phaser', () => {
+    const { manager, soundManager } = createManager();
+
+    manager.playFoundSound();
+    manager.playWinSound();
+    manager.playLossSound();
+
+    expect(soundManager.play).toHaveBeenNthCalledWith(1, AUDIO_ASSET_KEYS.FOUND);
+    expect(soundManager.play).toHaveBeenNthCalledWith(2, AUDIO_ASSET_KEYS.WIN);
+    expect(soundManager.play).toHaveBeenNthCalledWith(3, AUDIO_ASSET_KEYS.LOSS);
   });
 
-  it('resumes interrupted contexts too', async () => {
-    const am  = new AudioManager();
-    const ctx = makeMockContext('interrupted');
-    ctx.resume = vi.fn(() => {
-      ctx.state = 'running';
-      return Promise.resolve();
-    });
+  it('queues cue sounds until audio has been unlocked', async () => {
+    const { manager, soundManager, context } = createManager({ locked: true, state: 'suspended' });
+    let resolveResume;
+    context.resume = vi.fn(() => new Promise((resolve) => {
+      resolveResume = () => {
+        context.state = 'running';
+        resolve();
+      };
+    }));
 
-    am._ctx = ctx;
+    manager.playFoundSound();
+    manager.playWinSound();
 
-    await expect(am.unlock()).resolves.toBe(true);
+    expect(soundManager.play).not.toHaveBeenCalled();
 
-    expect(ctx.resume).toHaveBeenCalledOnce();
-    expect(am.isReady()).toBe(true);
+    const unlockPromise = manager.unlock();
+    resolveResume();
+    await unlockPromise;
+
+    expect(soundManager.play).toHaveBeenNthCalledWith(1, AUDIO_ASSET_KEYS.FOUND);
+    expect(soundManager.play).toHaveBeenNthCalledWith(2, AUDIO_ASSET_KEYS.WIN);
   });
 });
