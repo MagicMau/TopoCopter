@@ -3,11 +3,20 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('phaser', () => ({
   default: {
     Scene: class {},
+    Math: {
+      Clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
+      Linear: (start, end, progress) => start + (end - start) * progress,
+    },
   },
 }));
 
 import MapScene from '../scenes/MapScene.js';
-import { MAP_STYLE, WORLD_DEPTHS, WORLD_LAYOUT } from '../ui/styles.js';
+import {
+  MAP_STYLE,
+  PALETTE,
+  WORLD_DEPTHS,
+  WORLD_LAYOUT,
+} from '../ui/styles.js';
 
 const makeScene = (data) => {
   const scene = Object.create(MapScene.prototype);
@@ -219,5 +228,26 @@ describe('MapScene unavailable region overlay bounds', () => {
 
     expect(graphics.fillRect).toHaveBeenCalledTimes(1);
     expect(graphics.fillRect).toHaveBeenCalledWith(0, 1288, WORLD_LAYOUT.WIDTH, WORLD_LAYOUT.HEIGHT - 1288);
+  });
+});
+
+describe('MapScene river styling', () => {
+  it('uses a darker river palette for sky-visible strokes', () => {
+    expect(PALETTE.hydroLine).toBe(0x162534);
+    expect(PALETTE.hydroLineVector).toBe(0x05080c);
+  });
+
+  it('makes hydro lines visible at normal flight zoom levels', () => {
+    const scene = Object.create(MapScene.prototype);
+    scene.baseMapMinZoom = 1;
+    scene.reliefImage = null;
+
+    const zoom = 3.5;
+    const visualState = scene.getMapVisualState(zoom);
+
+    expect(visualState.hydroLineVisible).toBe(true);
+    expect(visualState.hydroLineAlpha).toBeGreaterThan(0.35);
+    expect(visualState.hydroLineWidth * zoom).toBeGreaterThan(2.4);
+    expect(visualState.hydroLineColor).toBe(PALETTE.hydroLine);
   });
 });
