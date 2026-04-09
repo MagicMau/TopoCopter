@@ -3,8 +3,13 @@ import MovementController from '../core/MovementController.js';
 import RotationController from '../core/RotationController.js';
 
 const DEFAULT_SIZE = Object.freeze({
-  width: 80,
-  height: 80,
+  width: 32,
+  height: 32,
+});
+
+const DEFAULT_HITBOX_SIZE = Object.freeze({
+  width: Math.max(80 * 0.56, 16),
+  height: Math.max(80 * 0.42, 10),
 });
 
 const DEFAULT_COLORS = Object.freeze({
@@ -63,6 +68,25 @@ const normalizeSize = (options = {}) => {
 
 const normalizeColor = (value, fallback) =>
   Number.isInteger(value) ? value : fallback;
+
+const hasExplicitSize = (options = {}) =>
+  options.size !== undefined ||
+  options.width !== undefined ||
+  options.height !== undefined;
+
+const resolveHitboxSize = (displayWidth, displayHeight, options = {}) => {
+  if (!hasExplicitSize(options)) {
+    return {
+      width: DEFAULT_HITBOX_SIZE.width,
+      height: DEFAULT_HITBOX_SIZE.height,
+    };
+  }
+
+  return {
+    width: Math.max(displayWidth * 0.56, 16),
+    height: Math.max(displayHeight * 0.42, 10),
+  };
+};
 
 const textureKeyFor = (scene, options, width, height) => {
   if (typeof options.texture === 'string' && options.texture.length > 0) {
@@ -288,17 +312,25 @@ export default class Helicopter extends Phaser.Physics.Arcade.Sprite {
     if (scene.physics?.add?.existing) {
       scene.physics.add.existing(this);
     } else {
+      const fallbackHitbox = resolveHitboxSize(
+        this.displayWidth,
+        this.displayHeight,
+        options,
+      );
       this.fallbackBody = createFallbackBody(
         this,
-        this.displayWidth * 0.56,
-        this.displayHeight * 0.42,
+        fallbackHitbox.width,
+        fallbackHitbox.height,
       );
     }
 
     const activeBody = this.getActiveBody();
     if (activeBody) {
-      const hitboxWidth = Math.max(this.displayWidth * 0.56, 16);
-      const hitboxHeight = Math.max(this.displayHeight * 0.42, 10);
+      const { width: hitboxWidth, height: hitboxHeight } = resolveHitboxSize(
+        this.displayWidth,
+        this.displayHeight,
+        options,
+      );
 
       // Store the desired constant physics hitbox dimensions so setVisualScale can
       // keep them stable regardless of the visual sprite scale.

@@ -1,88 +1,1504 @@
 {
   "countries": [
-    { "id": "country-netherlands",   "name": "Nederland",        "lat": 52.1326, "lon":  5.2913 },
-    { "id": "country-belgium",       "name": "België",           "lat": 50.5039, "lon":  4.4699 },
-    { "id": "country-germany",       "name": "Duitsland",        "lat": 51.1657, "lon": 10.4515 },
-    { "id": "country-france",        "name": "Frankrijk",        "lat": 46.2276, "lon":  2.2137 },
-    { "id": "country-spain",         "name": "Spanje",           "lat": 40.4637, "lon": -3.7492 },
-    { "id": "country-portugal",      "name": "Portugal",         "lat": 39.3999, "lon": -8.2245 },
-    { "id": "country-italy",         "name": "Italië",           "lat": 41.8719, "lon": 12.5674 },
-    { "id": "country-austria",       "name": "Oostenrijk",       "lat": 47.5162, "lon": 14.5501 },
-    { "id": "country-switzerland",   "name": "Zwitserland",      "lat": 46.8182, "lon":  8.2275 },
-    { "id": "country-poland",        "name": "Polen",            "lat": 51.9194, "lon": 19.1451 },
-    { "id": "country-czech",         "name": "Tsjechië",         "lat": 49.8175, "lon": 15.4730 },
-    { "id": "country-hungary",       "name": "Hongarije",        "lat": 47.1625, "lon": 19.5033 },
-    { "id": "country-sweden",        "name": "Zweden",           "lat": 63.0000, "lon": 16.0000 },
-    { "id": "country-norway",        "name": "Noorwegen",        "lat": 60.4720, "lon":  8.4689 },
-    { "id": "country-denmark",       "name": "Denemarken",       "lat": 56.2639, "lon":  9.5018 },
-    { "id": "country-finland",       "name": "Finland",          "lat": 61.9241, "lon": 25.7482 },
-    { "id": "country-iceland",       "name": "IJsland",          "lat": 64.9631, "lon": -19.0208 },
-    { "id": "country-estonia",       "name": "Estland",          "lat": 58.5953, "lon": 25.0136 },
-    { "id": "country-latvia",        "name": "Letland",          "lat": 56.8796, "lon": 24.6032 },
-    { "id": "country-lithuania",     "name": "Litouwen",         "lat": 55.1694, "lon": 23.8813 },
-    { "id": "country-greece",        "name": "Griekenland",      "lat": 39.0742, "lon": 21.8243 },
-    { "id": "country-romania",       "name": "Roemenië",         "lat": 45.9432, "lon": 24.9668 },
-    { "id": "country-ukraine",       "name": "Oekraïne",         "lat": 48.3794, "lon": 31.1656 },
-    { "id": "country-turkey",        "name": "Turkije",          "lat": 38.9637, "lon": 35.2433 }
+    {
+      "id": "country-afghanistan",
+      "name": "Afghanistan",
+      "lat": 33.0,
+      "lon": 65.0
+    },
+    {
+      "id": "country-albania",
+      "name": "Albanië",
+      "lat": 41.0,
+      "lon": 20.0
+    },
+    {
+      "id": "country-algeria",
+      "name": "Algerije",
+      "lat": 28.0,
+      "lon": 3.0
+    },
+    {
+      "id": "country-andorra",
+      "name": "Andorra",
+      "lat": 42.5,
+      "lon": 1.5
+    },
+    {
+      "id": "country-angola",
+      "name": "Angola",
+      "lat": -12.5,
+      "lon": 18.5
+    },
+    {
+      "id": "country-antigua-and-barbuda",
+      "name": "Antigua en Barbuda",
+      "lat": 17.05,
+      "lon": -61.8
+    },
+    {
+      "id": "country-argentina",
+      "name": "Argentinië",
+      "lat": -34.0,
+      "lon": -64.0
+    },
+    {
+      "id": "country-armenia",
+      "name": "Armenië",
+      "lat": 40.0,
+      "lon": 45.0
+    },
+    {
+      "id": "country-australia",
+      "name": "Australië",
+      "lat": -27.0,
+      "lon": 133.0
+    },
+    {
+      "id": "country-azerbaijan",
+      "name": "Azerbeidzjan",
+      "lat": 40.5,
+      "lon": 47.5
+    },
+    {
+      "id": "country-bahamas",
+      "name": "Bahama’s",
+      "lat": 25.0343,
+      "lon": -77.3963
+    },
+    {
+      "id": "country-bahrain",
+      "name": "Bahrein",
+      "lat": 26.0,
+      "lon": 50.55
+    },
+    {
+      "id": "country-bangladesh",
+      "name": "Bangladesh",
+      "lat": 24.0,
+      "lon": 90.0
+    },
+    {
+      "id": "country-barbados",
+      "name": "Barbados",
+      "lat": 13.1667,
+      "lon": -59.5333
+    },
+    {
+      "id": "country-belgium",
+      "name": "België",
+      "lat": 50.8333,
+      "lon": 4.0
+    },
+    {
+      "id": "country-belize",
+      "name": "Belize",
+      "lat": 17.25,
+      "lon": -88.75
+    },
+    {
+      "id": "country-benin",
+      "name": "Benin",
+      "lat": 9.5,
+      "lon": 2.25
+    },
+    {
+      "id": "country-bhutan",
+      "name": "Bhutan",
+      "lat": 27.5,
+      "lon": 90.5
+    },
+    {
+      "id": "country-bolivia",
+      "name": "Bolivia",
+      "lat": -17.0,
+      "lon": -65.0
+    },
+    {
+      "id": "country-bosnia-and-herzegovina",
+      "name": "Bosnië en Herzegovina",
+      "lat": 44.0,
+      "lon": 18.0
+    },
+    {
+      "id": "country-botswana",
+      "name": "Botswana",
+      "lat": -22.0,
+      "lon": 24.0
+    },
+    {
+      "id": "country-brazil",
+      "name": "Brazilië",
+      "lat": -10.0,
+      "lon": -55.0
+    },
+    {
+      "id": "country-brunei",
+      "name": "Brunei",
+      "lat": 4.5,
+      "lon": 114.6667
+    },
+    {
+      "id": "country-bulgaria",
+      "name": "Bulgarije",
+      "lat": 43.0,
+      "lon": 25.0
+    },
+    {
+      "id": "country-burkina-faso",
+      "name": "Burkina Faso",
+      "lat": 13.0,
+      "lon": -2.0
+    },
+    {
+      "id": "country-burundi",
+      "name": "Burundi",
+      "lat": -3.5,
+      "lon": 30.0
+    },
+    {
+      "id": "country-cambodia",
+      "name": "Cambodja",
+      "lat": 13.0,
+      "lon": 105.0
+    },
+    {
+      "id": "country-canada",
+      "name": "Canada",
+      "lat": 60.0,
+      "lon": -95.0
+    },
+    {
+      "id": "country-central-african-republic",
+      "name": "Centraal-Afrikaanse Republiek",
+      "lat": 7.0,
+      "lon": 21.0
+    },
+    {
+      "id": "country-chile",
+      "name": "Chili",
+      "lat": -30.0,
+      "lon": -71.0
+    },
+    {
+      "id": "country-china",
+      "name": "China",
+      "lat": 35.0,
+      "lon": 105.0
+    },
+    {
+      "id": "country-colombia",
+      "name": "Colombia",
+      "lat": 4.0,
+      "lon": -72.0
+    },
+    {
+      "id": "country-comoros",
+      "name": "Comoren",
+      "lat": -12.1667,
+      "lon": 44.25
+    },
+    {
+      "id": "country-republic-of-the-congo",
+      "name": "Congo",
+      "lat": -1.0,
+      "lon": 15.0
+    },
+    {
+      "id": "country-dr-congo",
+      "name": "Congo (DRC)",
+      "lat": 0.0,
+      "lon": 25.0
+    },
+    {
+      "id": "country-costa-rica",
+      "name": "Costa Rica",
+      "lat": 10.0,
+      "lon": -84.0
+    },
+    {
+      "id": "country-cuba",
+      "name": "Cuba",
+      "lat": 21.5,
+      "lon": -80.0
+    },
+    {
+      "id": "country-cyprus",
+      "name": "Cyprus",
+      "lat": 35.0,
+      "lon": 33.0
+    },
+    {
+      "id": "country-denmark",
+      "name": "Denemarken",
+      "lat": 56.0,
+      "lon": 10.0
+    },
+    {
+      "id": "country-djibouti",
+      "name": "Djibouti",
+      "lat": 11.5,
+      "lon": 43.0
+    },
+    {
+      "id": "country-dominica",
+      "name": "Dominica",
+      "lat": 15.4167,
+      "lon": -61.3333
+    },
+    {
+      "id": "country-dominican-republic",
+      "name": "Dominicaanse Republiek",
+      "lat": 19.0,
+      "lon": -70.6667
+    },
+    {
+      "id": "country-germany",
+      "name": "Duitsland",
+      "lat": 51.0,
+      "lon": 9.0
+    },
+    {
+      "id": "country-ecuador",
+      "name": "Ecuador",
+      "lat": -2.0,
+      "lon": -77.5
+    },
+    {
+      "id": "country-egypt",
+      "name": "Egypte",
+      "lat": 27.0,
+      "lon": 30.0
+    },
+    {
+      "id": "country-el-salvador",
+      "name": "El Salvador",
+      "lat": 13.8333,
+      "lon": -88.9167
+    },
+    {
+      "id": "country-equatorial-guinea",
+      "name": "Equatoriaal-Guinea",
+      "lat": 2.0,
+      "lon": 10.0
+    },
+    {
+      "id": "country-eritrea",
+      "name": "Eritrea",
+      "lat": 15.0,
+      "lon": 39.0
+    },
+    {
+      "id": "country-estonia",
+      "name": "Estland",
+      "lat": 59.0,
+      "lon": 26.0
+    },
+    {
+      "id": "country-ethiopia",
+      "name": "Ethiopië",
+      "lat": 8.0,
+      "lon": 38.0
+    },
+    {
+      "id": "country-fiji",
+      "name": "Fiji",
+      "lat": -17.7134,
+      "lon": 178.065
+    },
+    {
+      "id": "country-philippines",
+      "name": "Filipijnen",
+      "lat": 13.0,
+      "lon": 122.0
+    },
+    {
+      "id": "country-finland",
+      "name": "Finland",
+      "lat": 64.0,
+      "lon": 26.0
+    },
+    {
+      "id": "country-france",
+      "name": "Frankrijk",
+      "lat": 46.0,
+      "lon": 2.0
+    },
+    {
+      "id": "country-gabon",
+      "name": "Gabon",
+      "lat": -1.0,
+      "lon": 11.75
+    },
+    {
+      "id": "country-gambia",
+      "name": "Gambia",
+      "lat": 13.4667,
+      "lon": -16.5667
+    },
+    {
+      "id": "country-georgia",
+      "name": "Georgië",
+      "lat": 42.0,
+      "lon": 43.5
+    },
+    {
+      "id": "country-ghana",
+      "name": "Ghana",
+      "lat": 8.0,
+      "lon": -2.0
+    },
+    {
+      "id": "country-grenada",
+      "name": "Grenada",
+      "lat": 12.1167,
+      "lon": -61.6667
+    },
+    {
+      "id": "country-greece",
+      "name": "Griekenland",
+      "lat": 39.0,
+      "lon": 22.0
+    },
+    {
+      "id": "country-guatemala",
+      "name": "Guatemala",
+      "lat": 15.5,
+      "lon": -90.25
+    },
+    {
+      "id": "country-guinea",
+      "name": "Guinee",
+      "lat": 11.0,
+      "lon": -10.0
+    },
+    {
+      "id": "country-guinea-bissau",
+      "name": "Guinee-Bissau",
+      "lat": 12.0,
+      "lon": -15.0
+    },
+    {
+      "id": "country-guyana",
+      "name": "Guyana",
+      "lat": 5.0,
+      "lon": -59.0
+    },
+    {
+      "id": "country-haiti",
+      "name": "Haïti",
+      "lat": 19.0,
+      "lon": -72.4167
+    },
+    {
+      "id": "country-honduras",
+      "name": "Honduras",
+      "lat": 15.0,
+      "lon": -86.5
+    },
+    {
+      "id": "country-hungary",
+      "name": "Hongarije",
+      "lat": 47.0,
+      "lon": 20.0
+    },
+    {
+      "id": "country-ireland",
+      "name": "Ierland",
+      "lat": 53.0,
+      "lon": -8.0
+    },
+    {
+      "id": "country-iceland",
+      "name": "IJsland",
+      "lat": 65.0,
+      "lon": -18.0
+    },
+    {
+      "id": "country-india",
+      "name": "India",
+      "lat": 20.0,
+      "lon": 77.0
+    },
+    {
+      "id": "country-indonesia",
+      "name": "Indonesië",
+      "lat": -5.0,
+      "lon": 120.0
+    },
+    {
+      "id": "country-iraq",
+      "name": "Irak",
+      "lat": 33.0,
+      "lon": 44.0
+    },
+    {
+      "id": "country-iran",
+      "name": "Iran",
+      "lat": 32.0,
+      "lon": 53.0
+    },
+    {
+      "id": "country-israel",
+      "name": "Israël",
+      "lat": 31.47,
+      "lon": 35.13
+    },
+    {
+      "id": "country-italy",
+      "name": "Italië",
+      "lat": 42.8333,
+      "lon": 12.8333
+    },
+    {
+      "id": "country-ivory-coast",
+      "name": "Ivoorkust",
+      "lat": 8.0,
+      "lon": -5.0
+    },
+    {
+      "id": "country-jamaica",
+      "name": "Jamaica",
+      "lat": 18.25,
+      "lon": -77.5
+    },
+    {
+      "id": "country-japan",
+      "name": "Japan",
+      "lat": 36.0,
+      "lon": 138.0
+    },
+    {
+      "id": "country-yemen",
+      "name": "Jemen",
+      "lat": 15.0,
+      "lon": 48.0
+    },
+    {
+      "id": "country-jordan",
+      "name": "Jordanië",
+      "lat": 31.0,
+      "lon": 36.0
+    },
+    {
+      "id": "country-cape-verde",
+      "name": "Kaapverdië",
+      "lat": 16.5388,
+      "lon": -23.0418
+    },
+    {
+      "id": "country-cameroon",
+      "name": "Kameroen",
+      "lat": 6.0,
+      "lon": 12.0
+    },
+    {
+      "id": "country-kazakhstan",
+      "name": "Kazachstan",
+      "lat": 48.0196,
+      "lon": 66.9237
+    },
+    {
+      "id": "country-kenya",
+      "name": "Kenia",
+      "lat": 1.0,
+      "lon": 38.0
+    },
+    {
+      "id": "country-kyrgyzstan",
+      "name": "Kirgizië",
+      "lat": 41.0,
+      "lon": 75.0
+    },
+    {
+      "id": "country-kiribati",
+      "name": "Kiribati",
+      "lat": 1.4167,
+      "lon": 173.0
+    },
+    {
+      "id": "country-kuwait",
+      "name": "Koeweit",
+      "lat": 29.5,
+      "lon": 45.75
+    },
+    {
+      "id": "country-croatia",
+      "name": "Kroatië",
+      "lat": 45.1667,
+      "lon": 15.5
+    },
+    {
+      "id": "country-laos",
+      "name": "Laos",
+      "lat": 18.0,
+      "lon": 105.0
+    },
+    {
+      "id": "country-lesotho",
+      "name": "Lesotho",
+      "lat": -29.5,
+      "lon": 28.5
+    },
+    {
+      "id": "country-latvia",
+      "name": "Letland",
+      "lat": 57.0,
+      "lon": 25.0
+    },
+    {
+      "id": "country-lebanon",
+      "name": "Libanon",
+      "lat": 33.8333,
+      "lon": 35.8333
+    },
+    {
+      "id": "country-liberia",
+      "name": "Liberia",
+      "lat": 6.5,
+      "lon": -9.5
+    },
+    {
+      "id": "country-libya",
+      "name": "Libië",
+      "lat": 25.0,
+      "lon": 17.0
+    },
+    {
+      "id": "country-liechtenstein",
+      "name": "Liechtenstein",
+      "lat": 47.2667,
+      "lon": 9.5333
+    },
+    {
+      "id": "country-lithuania",
+      "name": "Litouwen",
+      "lat": 56.0,
+      "lon": 24.0
+    },
+    {
+      "id": "country-luxembourg",
+      "name": "Luxemburg",
+      "lat": 49.75,
+      "lon": 6.1667
+    },
+    {
+      "id": "country-madagascar",
+      "name": "Madagaskar",
+      "lat": -20.0,
+      "lon": 47.0
+    },
+    {
+      "id": "country-malawi",
+      "name": "Malawi",
+      "lat": -13.5,
+      "lon": 34.0
+    },
+    {
+      "id": "country-maldives",
+      "name": "Maldiven",
+      "lat": 3.25,
+      "lon": 73.0
+    },
+    {
+      "id": "country-malaysia",
+      "name": "Maleisië",
+      "lat": 2.5,
+      "lon": 112.5
+    },
+    {
+      "id": "country-mali",
+      "name": "Mali",
+      "lat": 17.0,
+      "lon": -4.0
+    },
+    {
+      "id": "country-malta",
+      "name": "Malta",
+      "lat": 35.9375,
+      "lon": 14.3754
+    },
+    {
+      "id": "country-morocco",
+      "name": "Marokko",
+      "lat": 32.0,
+      "lon": -5.0
+    },
+    {
+      "id": "country-marshall-islands",
+      "name": "Marshalleilanden",
+      "lat": 9.0,
+      "lon": 168.0
+    },
+    {
+      "id": "country-mauritania",
+      "name": "Mauritanië",
+      "lat": 20.0,
+      "lon": -12.0
+    },
+    {
+      "id": "country-mauritius",
+      "name": "Mauritius",
+      "lat": -20.2833,
+      "lon": 57.55
+    },
+    {
+      "id": "country-mexico",
+      "name": "Mexico",
+      "lat": 23.0,
+      "lon": -102.0
+    },
+    {
+      "id": "country-micronesia",
+      "name": "Micronesië",
+      "lat": 6.9167,
+      "lon": 158.25
+    },
+    {
+      "id": "country-moldova",
+      "name": "Moldavië",
+      "lat": 47.0,
+      "lon": 29.0
+    },
+    {
+      "id": "country-monaco",
+      "name": "Monaco",
+      "lat": 43.7333,
+      "lon": 7.4
+    },
+    {
+      "id": "country-mongolia",
+      "name": "Mongolië",
+      "lat": 46.0,
+      "lon": 105.0
+    },
+    {
+      "id": "country-montenegro",
+      "name": "Montenegro",
+      "lat": 42.5,
+      "lon": 19.3
+    },
+    {
+      "id": "country-mozambique",
+      "name": "Mozambique",
+      "lat": -18.25,
+      "lon": 35.0
+    },
+    {
+      "id": "country-myanmar",
+      "name": "Myanmar",
+      "lat": 22.0,
+      "lon": 98.0
+    },
+    {
+      "id": "country-namibia",
+      "name": "Namibië",
+      "lat": -22.0,
+      "lon": 17.0
+    },
+    {
+      "id": "country-nauru",
+      "name": "Nauru",
+      "lat": -0.5333,
+      "lon": 166.9167
+    },
+    {
+      "id": "country-netherlands",
+      "name": "Nederland",
+      "lat": 52.5,
+      "lon": 5.75
+    },
+    {
+      "id": "country-nepal",
+      "name": "Nepal",
+      "lat": 28.0,
+      "lon": 84.0
+    },
+    {
+      "id": "country-nicaragua",
+      "name": "Nicaragua",
+      "lat": 13.0,
+      "lon": -85.0
+    },
+    {
+      "id": "country-new-zealand",
+      "name": "Nieuw-Zeeland",
+      "lat": -41.0,
+      "lon": 174.0
+    },
+    {
+      "id": "country-niger",
+      "name": "Niger",
+      "lat": 16.0,
+      "lon": 8.0
+    },
+    {
+      "id": "country-nigeria",
+      "name": "Nigeria",
+      "lat": 10.0,
+      "lon": 8.0
+    },
+    {
+      "id": "country-north-korea",
+      "name": "Noord-Korea",
+      "lat": 40.0,
+      "lon": 127.0
+    },
+    {
+      "id": "country-north-macedonia",
+      "name": "Noord-Macedonië",
+      "lat": 41.8333,
+      "lon": 22.0
+    },
+    {
+      "id": "country-norway",
+      "name": "Noorwegen",
+      "lat": 62.0,
+      "lon": 10.0
+    },
+    {
+      "id": "country-uganda",
+      "name": "Oeganda",
+      "lat": 1.0,
+      "lon": 32.0
+    },
+    {
+      "id": "country-ukraine",
+      "name": "Oekraïne",
+      "lat": 49.0,
+      "lon": 32.0
+    },
+    {
+      "id": "country-uzbekistan",
+      "name": "Oezbekistan",
+      "lat": 41.0,
+      "lon": 64.0
+    },
+    {
+      "id": "country-oman",
+      "name": "Oman",
+      "lat": 21.0,
+      "lon": 57.0
+    },
+    {
+      "id": "country-timor-leste",
+      "name": "Oost-Timor",
+      "lat": -8.8333,
+      "lon": 125.9167
+    },
+    {
+      "id": "country-austria",
+      "name": "Oostenrijk",
+      "lat": 47.3333,
+      "lon": 13.3333
+    },
+    {
+      "id": "country-pakistan",
+      "name": "Pakistan",
+      "lat": 30.0,
+      "lon": 70.0
+    },
+    {
+      "id": "country-palau",
+      "name": "Palau",
+      "lat": 7.5,
+      "lon": 134.5
+    },
+    {
+      "id": "country-palestine",
+      "name": "Palestijnse gebieden",
+      "lat": 31.9,
+      "lon": 35.2
+    },
+    {
+      "id": "country-panama",
+      "name": "Panama",
+      "lat": 9.0,
+      "lon": -80.0
+    },
+    {
+      "id": "country-papua-new-guinea",
+      "name": "Papoea-Nieuw-Guinea",
+      "lat": -6.0,
+      "lon": 147.0
+    },
+    {
+      "id": "country-paraguay",
+      "name": "Paraguay",
+      "lat": -23.0,
+      "lon": -58.0
+    },
+    {
+      "id": "country-peru",
+      "name": "Peru",
+      "lat": -10.0,
+      "lon": -76.0
+    },
+    {
+      "id": "country-poland",
+      "name": "Polen",
+      "lat": 52.0,
+      "lon": 20.0
+    },
+    {
+      "id": "country-portugal",
+      "name": "Portugal",
+      "lat": 39.5,
+      "lon": -8.0
+    },
+    {
+      "id": "country-qatar",
+      "name": "Qatar",
+      "lat": 25.5,
+      "lon": 51.25
+    },
+    {
+      "id": "country-romania",
+      "name": "Roemenië",
+      "lat": 46.0,
+      "lon": 25.0
+    },
+    {
+      "id": "country-russia",
+      "name": "Rusland",
+      "lat": 60.0,
+      "lon": 100.0
+    },
+    {
+      "id": "country-rwanda",
+      "name": "Rwanda",
+      "lat": -2.0,
+      "lon": 30.0
+    },
+    {
+      "id": "country-saint-kitts-and-nevis",
+      "name": "Saint Kitts en Nevis",
+      "lat": 17.3333,
+      "lon": -62.75
+    },
+    {
+      "id": "country-saint-lucia",
+      "name": "Saint Lucia",
+      "lat": 13.8833,
+      "lon": -60.9667
+    },
+    {
+      "id": "country-saint-vincent-and-the-grenadines",
+      "name": "Saint Vincent en de Grenadines",
+      "lat": 13.25,
+      "lon": -61.2
+    },
+    {
+      "id": "country-solomon-islands",
+      "name": "Salomonseilanden",
+      "lat": -8.0,
+      "lon": 159.0
+    },
+    {
+      "id": "country-samoa",
+      "name": "Samoa",
+      "lat": -13.5833,
+      "lon": -172.3333
+    },
+    {
+      "id": "country-san-marino",
+      "name": "San Marino",
+      "lat": 43.7667,
+      "lon": 12.4167
+    },
+    {
+      "id": "country-sao-tome-and-principe",
+      "name": "Sao Tomé en Principe",
+      "lat": 1.0,
+      "lon": 7.0
+    },
+    {
+      "id": "country-saudi-arabia",
+      "name": "Saoedi-Arabië",
+      "lat": 25.0,
+      "lon": 45.0
+    },
+    {
+      "id": "country-senegal",
+      "name": "Senegal",
+      "lat": 14.0,
+      "lon": -14.0
+    },
+    {
+      "id": "country-serbia",
+      "name": "Servië",
+      "lat": 44.0,
+      "lon": 21.0
+    },
+    {
+      "id": "country-seychelles",
+      "name": "Seychellen",
+      "lat": -4.5833,
+      "lon": 55.6667
+    },
+    {
+      "id": "country-sierra-leone",
+      "name": "Sierra Leone",
+      "lat": 8.5,
+      "lon": -11.5
+    },
+    {
+      "id": "country-singapore",
+      "name": "Singapore",
+      "lat": 1.3667,
+      "lon": 103.8
+    },
+    {
+      "id": "country-slovenia",
+      "name": "Slovenië",
+      "lat": 46.1167,
+      "lon": 14.8167
+    },
+    {
+      "id": "country-slovakia",
+      "name": "Slowakije",
+      "lat": 48.6667,
+      "lon": 19.5
+    },
+    {
+      "id": "country-sudan",
+      "name": "Soedan",
+      "lat": 15.0,
+      "lon": 30.0
+    },
+    {
+      "id": "country-somalia",
+      "name": "Somalië",
+      "lat": 10.0,
+      "lon": 49.0
+    },
+    {
+      "id": "country-spain",
+      "name": "Spanje",
+      "lat": 40.0,
+      "lon": -4.0
+    },
+    {
+      "id": "country-sri-lanka",
+      "name": "Sri Lanka",
+      "lat": 7.0,
+      "lon": 81.0
+    },
+    {
+      "id": "country-suriname",
+      "name": "Suriname",
+      "lat": 4.0,
+      "lon": -56.0
+    },
+    {
+      "id": "country-eswatini",
+      "name": "Swaziland",
+      "lat": -26.5,
+      "lon": 31.5
+    },
+    {
+      "id": "country-syria",
+      "name": "Syrië",
+      "lat": 35.0,
+      "lon": 38.0
+    },
+    {
+      "id": "country-tajikistan",
+      "name": "Tadzjikistan",
+      "lat": 39.0,
+      "lon": 71.0
+    },
+    {
+      "id": "country-tanzania",
+      "name": "Tanzania",
+      "lat": -6.0,
+      "lon": 35.0
+    },
+    {
+      "id": "country-thailand",
+      "name": "Thailand",
+      "lat": 15.0,
+      "lon": 100.0
+    },
+    {
+      "id": "country-togo",
+      "name": "Togo",
+      "lat": 8.0,
+      "lon": 1.1667
+    },
+    {
+      "id": "country-tonga",
+      "name": "Tonga",
+      "lat": -20.0,
+      "lon": -175.0
+    },
+    {
+      "id": "country-trinidad-and-tobago",
+      "name": "Trinidad en Tobago",
+      "lat": 10.6918,
+      "lon": -61.2225
+    },
+    {
+      "id": "country-chad",
+      "name": "Tsjaad",
+      "lat": 15.0,
+      "lon": 19.0
+    },
+    {
+      "id": "country-czech",
+      "name": "Tsjechië",
+      "lat": 49.75,
+      "lon": 15.5
+    },
+    {
+      "id": "country-tunisia",
+      "name": "Tunesië",
+      "lat": 34.0,
+      "lon": 9.0
+    },
+    {
+      "id": "country-turkey",
+      "name": "Turkije",
+      "lat": 39.0,
+      "lon": 35.0
+    },
+    {
+      "id": "country-turkmenistan",
+      "name": "Turkmenistan",
+      "lat": 40.0,
+      "lon": 60.0
+    },
+    {
+      "id": "country-tuvalu",
+      "name": "Tuvalu",
+      "lat": -8.0,
+      "lon": 178.0
+    },
+    {
+      "id": "country-uruguay",
+      "name": "Uruguay",
+      "lat": -33.0,
+      "lon": -56.0
+    },
+    {
+      "id": "country-vanuatu",
+      "name": "Vanuatu",
+      "lat": -16.0,
+      "lon": 167.0
+    },
+    {
+      "id": "country-vatican-city",
+      "name": "Vaticaanstad",
+      "lat": 41.9,
+      "lon": 12.45
+    },
+    {
+      "id": "country-venezuela",
+      "name": "Venezuela",
+      "lat": 8.0,
+      "lon": -66.0
+    },
+    {
+      "id": "country-united-kingdom",
+      "name": "Verenigd Koninkrijk",
+      "lat": 54.0,
+      "lon": -2.0
+    },
+    {
+      "id": "country-united-arab-emirates",
+      "name": "Verenigde Arabische Emiraten",
+      "lat": 24.0,
+      "lon": 54.0
+    },
+    {
+      "id": "country-united-states",
+      "name": "Verenigde Staten",
+      "lat": 38.0,
+      "lon": -97.0
+    },
+    {
+      "id": "country-vietnam",
+      "name": "Vietnam",
+      "lat": 16.1667,
+      "lon": 107.8333
+    },
+    {
+      "id": "country-belarus",
+      "name": "Wit-Rusland",
+      "lat": 53.0,
+      "lon": 28.0
+    },
+    {
+      "id": "country-zambia",
+      "name": "Zambia",
+      "lat": -15.0,
+      "lon": 30.0
+    },
+    {
+      "id": "country-zimbabwe",
+      "name": "Zimbabwe",
+      "lat": -20.0,
+      "lon": 30.0
+    },
+    {
+      "id": "country-south-africa",
+      "name": "Zuid-Afrika",
+      "lat": -29.0,
+      "lon": 24.0
+    },
+    {
+      "id": "country-south-korea",
+      "name": "Zuid-Korea",
+      "lat": 37.0,
+      "lon": 127.5
+    },
+    {
+      "id": "country-south-sudan",
+      "name": "Zuid-Soedan",
+      "lat": 7.0,
+      "lon": 30.0
+    },
+    {
+      "id": "country-sweden",
+      "name": "Zweden",
+      "lat": 62.0,
+      "lon": 15.0
+    },
+    {
+      "id": "country-switzerland",
+      "name": "Zwitserland",
+      "lat": 47.0,
+      "lon": 8.0
+    }
   ],
   "cities": [
-    { "id": "city-amsterdam",        "name": "Amsterdam",        "lat": 52.3676, "lon":  4.9041 },
-    { "id": "city-berlin",           "name": "Berlijn",          "lat": 52.5200, "lon": 13.4050 },
-    { "id": "city-paris",            "name": "Parijs",           "lat": 48.8566, "lon":  2.3522 },
-    { "id": "city-london",           "name": "Londen",           "lat": 51.5074, "lon": -0.1278 },
-    { "id": "city-rome",             "name": "Rome",             "lat": 41.9028, "lon": 12.4964 },
-    { "id": "city-madrid",           "name": "Madrid",           "lat": 40.4168, "lon": -3.7038 },
-    { "id": "city-barcelona",        "name": "Barcelona",        "lat": 41.3851, "lon":  2.1734 },
-    { "id": "city-vienna",           "name": "Wenen",            "lat": 48.2082, "lon": 16.3738 },
-    { "id": "city-brussels",         "name": "Brussel",          "lat": 50.8465, "lon":  4.3518 },
-    { "id": "city-prague",           "name": "Praag",            "lat": 50.0755, "lon": 14.4378 },
-    { "id": "city-budapest",         "name": "Boedapest",        "lat": 47.4979, "lon": 19.0402 },
-    { "id": "city-warsaw",           "name": "Warschau",         "lat": 52.2297, "lon": 21.0122 },
-    { "id": "city-stockholm",        "name": "Stockholm",        "lat": 59.3293, "lon": 18.0686 },
-    { "id": "city-copenhagen",       "name": "Kopenhagen",       "lat": 55.6761, "lon": 12.5683 },
-    { "id": "city-oslo",             "name": "Oslo",             "lat": 59.9139, "lon": 10.7522 },
-    { "id": "city-helsinki",         "name": "Helsinki",         "lat": 60.1699, "lon": 24.9384 },
-    { "id": "city-lisbon",           "name": "Lissabon",         "lat": 38.7223, "lon": -9.1393 },
-    { "id": "city-athens",           "name": "Athene",           "lat": 37.9838, "lon": 23.7275 },
-    { "id": "city-zurich",           "name": "Zürich",           "lat": 47.3769, "lon":  8.5417 },
-    { "id": "city-munich",           "name": "München",          "lat": 48.1351, "lon": 11.5820 },
-    { "id": "city-hamburg",          "name": "Hamburg",          "lat": 53.5753, "lon": 10.0153 },
-    { "id": "city-milan",            "name": "Milaan",           "lat": 45.4654, "lon":  9.1859 },
-    { "id": "city-lyon",             "name": "Lyon",             "lat": 45.7640, "lon":  4.8357 },
-    { "id": "city-rotterdam",        "name": "Rotterdam",        "lat": 51.9244, "lon":  4.4777 },
-    { "id": "city-bucharest",        "name": "Boekarest",        "lat": 44.4268, "lon": 26.1025 }
+    {
+      "id": "city-amsterdam",
+      "name": "Amsterdam",
+      "lat": 52.3676,
+      "lon": 4.9041
+    },
+    {
+      "id": "city-berlin",
+      "name": "Berlijn",
+      "lat": 52.52,
+      "lon": 13.405
+    },
+    {
+      "id": "city-paris",
+      "name": "Parijs",
+      "lat": 48.8566,
+      "lon": 2.3522
+    },
+    {
+      "id": "city-london",
+      "name": "Londen",
+      "lat": 51.5074,
+      "lon": -0.1278
+    },
+    {
+      "id": "city-rome",
+      "name": "Rome",
+      "lat": 41.9028,
+      "lon": 12.4964
+    },
+    {
+      "id": "city-madrid",
+      "name": "Madrid",
+      "lat": 40.4168,
+      "lon": -3.7038
+    },
+    {
+      "id": "city-barcelona",
+      "name": "Barcelona",
+      "lat": 41.3851,
+      "lon": 2.1734
+    },
+    {
+      "id": "city-vienna",
+      "name": "Wenen",
+      "lat": 48.2082,
+      "lon": 16.3738
+    },
+    {
+      "id": "city-brussels",
+      "name": "Brussel",
+      "lat": 50.8465,
+      "lon": 4.3518
+    },
+    {
+      "id": "city-prague",
+      "name": "Praag",
+      "lat": 50.0755,
+      "lon": 14.4378
+    },
+    {
+      "id": "city-budapest",
+      "name": "Boedapest",
+      "lat": 47.4979,
+      "lon": 19.0402
+    },
+    {
+      "id": "city-warsaw",
+      "name": "Warschau",
+      "lat": 52.2297,
+      "lon": 21.0122
+    },
+    {
+      "id": "city-stockholm",
+      "name": "Stockholm",
+      "lat": 59.3293,
+      "lon": 18.0686
+    },
+    {
+      "id": "city-copenhagen",
+      "name": "Kopenhagen",
+      "lat": 55.6761,
+      "lon": 12.5683
+    },
+    {
+      "id": "city-oslo",
+      "name": "Oslo",
+      "lat": 59.9139,
+      "lon": 10.7522
+    },
+    {
+      "id": "city-helsinki",
+      "name": "Helsinki",
+      "lat": 60.1699,
+      "lon": 24.9384
+    },
+    {
+      "id": "city-lisbon",
+      "name": "Lissabon",
+      "lat": 38.7223,
+      "lon": -9.1393
+    },
+    {
+      "id": "city-athens",
+      "name": "Athene",
+      "lat": 37.9838,
+      "lon": 23.7275
+    },
+    {
+      "id": "city-zurich",
+      "name": "Zürich",
+      "lat": 47.3769,
+      "lon": 8.5417
+    },
+    {
+      "id": "city-munich",
+      "name": "München",
+      "lat": 48.1351,
+      "lon": 11.582
+    },
+    {
+      "id": "city-hamburg",
+      "name": "Hamburg",
+      "lat": 53.5753,
+      "lon": 10.0153
+    },
+    {
+      "id": "city-milan",
+      "name": "Milaan",
+      "lat": 45.4654,
+      "lon": 9.1859
+    },
+    {
+      "id": "city-lyon",
+      "name": "Lyon",
+      "lat": 45.764,
+      "lon": 4.8357
+    },
+    {
+      "id": "city-rotterdam",
+      "name": "Rotterdam",
+      "lat": 51.9244,
+      "lon": 4.4777
+    },
+    {
+      "id": "city-bucharest",
+      "name": "Boekarest",
+      "lat": 44.4268,
+      "lon": 26.1025
+    }
   ],
   "water": [
-    { "id": "water-north-sea",       "name": "Noordzee",         "lat": 56.0000, "lon":  3.5000 },
-    { "id": "water-baltic-sea",      "name": "Oostzee",          "lat": 58.5000, "lon": 18.0000 },
-    { "id": "water-mediterranean",   "name": "Middellandse Zee", "lat": 37.5000, "lon": 14.0000 },
-    { "id": "water-english-channel", "name": "Het Kanaal",       "lat": 50.5000, "lon": -1.0000 },
-    { "id": "water-black-sea",       "name": "Zwarte Zee",       "lat": 43.0000, "lon": 33.0000 },
-    { "id": "water-adriatic-sea",    "name": "Adriatische Zee",  "lat": 43.0000, "lon": 15.5000 },
-    { "id": "water-aegean-sea",      "name": "Egeïsche Zee",     "lat": 39.0000, "lon": 25.0000 },
-    { "id": "water-bay-of-biscay",   "name": "Golf van Biskaje", "lat": 45.0000, "lon": -4.0000 },
-    { "id": "water-atlantic-ocean",  "name": "Atlantische Oceaan","lat": 62.5000, "lon": -20.0000 },
-    { "id": "water-arctic-ocean",    "name": "Noordelijke IJszee","lat": 76.0000, "lon":  8.0000 },
-    { "id": "water-rhine",           "name": "Rijn",             "lat": 51.9500, "lon":  6.4000 },
-    { "id": "water-danube",          "name": "Donau",            "lat": 45.5000, "lon": 29.7000 },
-    { "id": "water-lake-geneva",     "name": "Meer van Genève",  "lat": 46.4500, "lon":  6.5000 },
-    { "id": "water-ijsselmeer",      "name": "IJsselmeer",       "lat": 52.7500, "lon":  5.3000 }
+    {
+      "id": "water-north-sea",
+      "name": "Noordzee",
+      "lat": 56.0,
+      "lon": 3.5
+    },
+    {
+      "id": "water-baltic-sea",
+      "name": "Oostzee",
+      "lat": 58.5,
+      "lon": 18.0
+    },
+    {
+      "id": "water-mediterranean",
+      "name": "Middellandse Zee",
+      "lat": 37.5,
+      "lon": 14.0
+    },
+    {
+      "id": "water-english-channel",
+      "name": "Het Kanaal",
+      "lat": 50.5,
+      "lon": -1.0
+    },
+    {
+      "id": "water-black-sea",
+      "name": "Zwarte Zee",
+      "lat": 43.0,
+      "lon": 33.0
+    },
+    {
+      "id": "water-adriatic-sea",
+      "name": "Adriatische Zee",
+      "lat": 43.0,
+      "lon": 15.5
+    },
+    {
+      "id": "water-aegean-sea",
+      "name": "Egeïsche Zee",
+      "lat": 39.0,
+      "lon": 25.0
+    },
+    {
+      "id": "water-bay-of-biscay",
+      "name": "Golf van Biskaje",
+      "lat": 45.0,
+      "lon": -4.0
+    },
+    {
+      "id": "water-atlantic-ocean",
+      "name": "Atlantische Oceaan",
+      "lat": 62.5,
+      "lon": -20.0
+    },
+    {
+      "id": "water-arctic-ocean",
+      "name": "Noordelijke IJszee",
+      "lat": 76.0,
+      "lon": 8.0
+    },
+    {
+      "id": "water-rhine",
+      "name": "Rijn",
+      "lat": 51.95,
+      "lon": 6.4
+    },
+    {
+      "id": "water-danube",
+      "name": "Donau",
+      "lat": 45.5,
+      "lon": 29.7
+    },
+    {
+      "id": "water-lake-geneva",
+      "name": "Meer van Genève",
+      "lat": 46.45,
+      "lon": 6.5
+    },
+    {
+      "id": "water-ijsselmeer",
+      "name": "IJsselmeer",
+      "lat": 52.75,
+      "lon": 5.3
+    }
   ],
   "areas": [
-    { "id": "area-alps",                    "name": "De Alpen",                  "lat": 46.5000, "lon": 10.0000 },
-    { "id": "area-scandinavia",             "name": "Scandinavië",               "lat": 63.5000, "lon": 17.0000 },
-    { "id": "area-pyrenees",                "name": "De Pyreneeën",              "lat": 42.8000, "lon":  1.5000 },
-    { "id": "area-carpathians",             "name": "De Karpaten",               "lat": 49.0000, "lon": 22.0000 },
-    { "id": "area-apennines",               "name": "De Apennijnen",             "lat": 42.5000, "lon": 13.5000 },
-    { "id": "area-scandinavian-mountains",  "name": "De Scandinavische Bergen",  "lat": 63.0000, "lon": 14.0000 },
-    { "id": "area-biesbosch",               "name": "De Biesbosch",              "lat": 51.7600, "lon":  4.8000 },
-    { "id": "area-veluwe",                  "name": "De Veluwe",                 "lat": 52.2000, "lon":  5.8500 },
-    { "id": "area-wadden",                  "name": "Het Waddengebied",          "lat": 53.2000, "lon":  5.5000 },
-    { "id": "area-ardennes",                "name": "De Ardennen",               "lat": 50.0000, "lon":  5.5000 },
-    { "id": "area-black-forest",            "name": "Het Zwarte Woud",           "lat": 48.0000, "lon":  8.2000 },
-    { "id": "area-camargue",                "name": "De Camargue",               "lat": 43.5000, "lon":  4.6000 },
-    { "id": "area-tuscany",                 "name": "Toscane",                   "lat": 43.4000, "lon": 11.0000 },
-    { "id": "area-puszta",                  "name": "De Puszta",                 "lat": 47.3000, "lon": 20.5000 },
-    { "id": "area-lapland",                 "name": "Lapland",                   "lat": 68.0000, "lon": 26.0000 }
+    {
+      "id": "area-alps",
+      "name": "De Alpen",
+      "lat": 46.5,
+      "lon": 10.0
+    },
+    {
+      "id": "area-scandinavia",
+      "name": "Scandinavië",
+      "lat": 63.5,
+      "lon": 17.0
+    },
+    {
+      "id": "area-pyrenees",
+      "name": "De Pyreneeën",
+      "lat": 42.8,
+      "lon": 1.5
+    },
+    {
+      "id": "area-carpathians",
+      "name": "De Karpaten",
+      "lat": 49.0,
+      "lon": 22.0
+    },
+    {
+      "id": "area-apennines",
+      "name": "De Apennijnen",
+      "lat": 42.5,
+      "lon": 13.5
+    },
+    {
+      "id": "area-scandinavian-mountains",
+      "name": "De Scandinavische Bergen",
+      "lat": 63.0,
+      "lon": 14.0
+    },
+    {
+      "id": "area-biesbosch",
+      "name": "De Biesbosch",
+      "lat": 51.76,
+      "lon": 4.8
+    },
+    {
+      "id": "area-veluwe",
+      "name": "De Veluwe",
+      "lat": 52.2,
+      "lon": 5.85
+    },
+    {
+      "id": "area-wadden",
+      "name": "Het Waddengebied",
+      "lat": 53.2,
+      "lon": 5.5
+    },
+    {
+      "id": "area-ardennes",
+      "name": "De Ardennen",
+      "lat": 50.0,
+      "lon": 5.5
+    },
+    {
+      "id": "area-black-forest",
+      "name": "Het Zwarte Woud",
+      "lat": 48.0,
+      "lon": 8.2
+    },
+    {
+      "id": "area-camargue",
+      "name": "De Camargue",
+      "lat": 43.5,
+      "lon": 4.6
+    },
+    {
+      "id": "area-tuscany",
+      "name": "Toscane",
+      "lat": 43.4,
+      "lon": 11.0
+    },
+    {
+      "id": "area-puszta",
+      "name": "De Puszta",
+      "lat": 47.3,
+      "lon": 20.5
+    },
+    {
+      "id": "area-lapland",
+      "name": "Lapland",
+      "lat": 68.0,
+      "lon": 26.0
+    }
   ]
 }

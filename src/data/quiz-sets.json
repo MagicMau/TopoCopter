@@ -10,19 +10,25 @@
       "targetRadius": 60,
       "fixedFraming": true,
       "framingPaddingFactor": 0.15,
-      "targets": [
-        "country-netherlands",
-        "country-belgium",
-        "country-germany",
-        "country-france",
-        "city-amsterdam",
-        "city-brussels",
-        "city-berlin",
-        "city-paris",
-        "water-north-sea",
-        "water-english-channel",
-        "water-rhine"
-      ]
+      "targetsByCategory": {
+        "countries": [
+          "country-netherlands",
+          "country-belgium",
+          "country-germany",
+          "country-france"
+        ],
+        "cities": [
+          "city-amsterdam",
+          "city-brussels",
+          "city-berlin",
+          "city-paris"
+        ],
+        "water": [
+          "water-north-sea",
+          "water-english-channel",
+          "water-rhine"
+        ]
+      }
     },
     {
       "id": "quiz-noord-europa",
@@ -50,25 +56,33 @@
         "preserveAspect": true,
         "fitMode": "width"
       },
-      "targets": [
-        "country-iceland",
-        "country-norway",
-        "country-denmark",
-        "country-sweden",
-        "country-finland",
-        "country-estonia",
-        "country-latvia",
-        "country-lithuania",
-        "city-stockholm",
-        "city-oslo",
-        "city-copenhagen",
-        "city-helsinki",
-        "water-arctic-ocean",
-        "water-atlantic-ocean",
-        "water-baltic-sea",
-        "water-north-sea",
-        "area-scandinavia"
-      ]
+      "targetsByCategory": {
+        "countries": [
+          "country-iceland",
+          "country-norway",
+          "country-denmark",
+          "country-sweden",
+          "country-finland",
+          "country-estonia",
+          "country-latvia",
+          "country-lithuania"
+        ],
+        "cities": [
+          "city-stockholm",
+          "city-oslo",
+          "city-copenhagen",
+          "city-helsinki"
+        ],
+        "water": [
+          "water-arctic-ocean",
+          "water-atlantic-ocean",
+          "water-baltic-sea",
+          "water-north-sea"
+        ],
+        "areas": [
+          "area-scandinavia"
+        ]
+      }
     },
     {
       "id": "quiz-zuid-europa",
@@ -80,19 +94,25 @@
       "targetRadius": 60,
       "fixedFraming": true,
       "framingPaddingFactor": 0.15,
-      "targets": [
-        "country-italy",
-        "country-spain",
-        "country-portugal",
-        "country-greece",
-        "city-rome",
-        "city-madrid",
-        "city-lisbon",
-        "city-athens",
-        "water-mediterranean",
-        "water-adriatic-sea",
-        "water-bay-of-biscay"
-      ]
+      "targetsByCategory": {
+        "countries": [
+          "country-italy",
+          "country-spain",
+          "country-portugal",
+          "country-greece"
+        ],
+        "cities": [
+          "city-rome",
+          "city-madrid",
+          "city-lisbon",
+          "city-athens"
+        ],
+        "water": [
+          "water-mediterranean",
+          "water-adriatic-sea",
+          "water-bay-of-biscay"
+        ]
+      }
     },
     {
       "id": "quiz-midden-europa",
@@ -104,21 +124,29 @@
       "targetRadius": 60,
       "fixedFraming": true,
       "framingPaddingFactor": 0.15,
-      "targets": [
-        "country-austria",
-        "country-switzerland",
-        "country-czech",
-        "country-hungary",
-        "country-poland",
-        "city-vienna",
-        "city-zurich",
-        "city-prague",
-        "city-budapest",
-        "city-warsaw",
-        "water-danube",
-        "water-lake-geneva",
-        "area-alps"
-      ]
+      "targetsByCategory": {
+        "countries": [
+          "country-austria",
+          "country-switzerland",
+          "country-czech",
+          "country-hungary",
+          "country-poland"
+        ],
+        "cities": [
+          "city-vienna",
+          "city-zurich",
+          "city-prague",
+          "city-budapest",
+          "city-warsaw"
+        ],
+        "water": [
+          "water-danube",
+          "water-lake-geneva"
+        ],
+        "areas": [
+          "area-alps"
+        ]
+      }
     },
     {
       "id": "quiz-nederland-omgeving",
@@ -130,20 +158,28 @@
       "targetRadius": 55,
       "fixedFraming": true,
       "framingPaddingFactor": 0.15,
-      "targets": [
-        "country-netherlands",
-        "country-belgium",
-        "country-germany",
-        "city-amsterdam",
-        "city-rotterdam",
-        "city-brussels",
-        "water-north-sea",
-        "water-rhine",
-        "water-ijsselmeer",
-        "area-veluwe",
-        "area-biesbosch",
-        "area-wadden"
-      ]
+      "targetsByCategory": {
+        "countries": [
+          "country-netherlands",
+          "country-belgium",
+          "country-germany"
+        ],
+        "cities": [
+          "city-amsterdam",
+          "city-rotterdam",
+          "city-brussels"
+        ],
+        "water": [
+          "water-north-sea",
+          "water-rhine",
+          "water-ijsselmeer"
+        ],
+        "areas": [
+          "area-veluwe",
+          "area-biesbosch",
+          "area-wadden"
+        ]
+      }
     },
     {
       "id": "quiz-rivieren-meren",
@@ -155,21 +191,25 @@
       "targetRadius": 65,
       "fixedFraming": true,
       "framingPaddingFactor": 0.15,
-      "targets": [
-        "water-rhine",
-        "water-danube",
-        "water-lake-geneva",
-        "water-north-sea",
-        "water-baltic-sea",
-        "water-mediterranean",
-        "water-black-sea",
-        "water-adriatic-sea",
-        "water-aegean-sea",
-        "water-bay-of-biscay",
-        "water-english-channel",
-        "water-ijsselmeer",
-        "area-alps"
-      ]
+      "targetsByCategory": {
+        "water": [
+          "water-rhine",
+          "water-danube",
+          "water-lake-geneva",
+          "water-north-sea",
+          "water-baltic-sea",
+          "water-mediterranean",
+          "water-black-sea",
+          "water-adriatic-sea",
+          "water-aegean-sea",
+          "water-bay-of-biscay",
+          "water-english-channel",
+          "water-ijsselmeer"
+        ],
+        "areas": [
+          "area-alps"
+        ]
+      }
     }
   ]
 }

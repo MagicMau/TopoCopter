@@ -19,8 +19,14 @@ import Helicopter from "../entities/Helicopter.js";
 import { matchesAnswer } from "../quiz/answerNormalizer.js";
 import { getDutchCategoryPromptDescriptor } from "../quiz/categoryLabels.js";
 import HoverDetector from "../quiz/HoverDetector.js";
-import { QUESTION_MODE } from "../quiz/questionModes.js";
+import { PLAY_MODE, QUESTION_MODE } from "../quiz/questionModes.js";
 import QuizController from "../quiz/QuizController.js";
+import {
+  normalizePlayMode,
+  readQuizRoute,
+  syncQuizRoute,
+} from "../quiz/quizRouting.js";
+import { flattenQuizSetTargetIds } from "../quiz/quizSetDefinitions.js";
 import SearchTimer from "../quiz/SearchTimer.js";
 import {
   computeProjectedTargetBounds,
@@ -872,9 +878,7 @@ export default class HelicopterScene extends MapScene {
 
   _resolveStartLevelId() {
     try {
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get("level");
-      if (id) return id;
+      return readQuizRoute().levelId;
     } catch (_) {
       /* non-browser env */
     }
@@ -886,7 +890,10 @@ export default class HelicopterScene extends MapScene {
       const sysData = this.sys?.settings?.data;
       const sceneData = this.scene?.settings?.data;
       const data = sysData ?? sceneData;
-      if (data?.playMode) return data.playMode;
+      const scenePlayMode = normalizePlayMode(data?.playMode);
+      if (scenePlayMode) return scenePlayMode;
+
+      return readQuizRoute().playMode;
     } catch (_) {
       /* non-browser env */
     }
@@ -909,8 +916,7 @@ export default class HelicopterScene extends MapScene {
       }
 
       // URL param fallback for direct deep-linking
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get("quizset");
+      const id = readQuizRoute().quizSetId;
       if (id) {
         debugLog("QUIZ-INIT", "Resolved quiz set id from URL parameter", {
           sysData,
@@ -994,8 +1000,8 @@ export default class HelicopterScene extends MapScene {
       Array.isArray(items) ? items.map((t) => ({ ...t, category: cat })) : [],
     );
     const targetMap = new Map(allTargets.map((t) => [t.id, t]));
-    const requestedIds = quizSet.targets ?? [];
-    const fixedTargets = (quizSet.targets ?? [])
+    const requestedIds = flattenQuizSetTargetIds(quizSet);
+    const fixedTargets = requestedIds
       .map((id) => targetMap.get(id))
       .filter(Boolean);
 
@@ -1142,6 +1148,7 @@ export default class HelicopterScene extends MapScene {
         },
         targetSummary: summarizeTargets(levelConfig.fixedTargets),
       });
+      this._syncBrowserQuizRoute();
       return;
     }
 
@@ -1156,6 +1163,21 @@ export default class HelicopterScene extends MapScene {
         name: this._quizController.level?.name ?? null,
       },
     });
+    this._syncBrowserQuizRoute();
+  }
+
+  _syncBrowserQuizRoute() {
+    const playMode = normalizePlayMode(this._currentPlayMode) ?? PLAY_MODE.LOCATE;
+
+    if (this._currentQuizSetId) {
+      syncQuizRoute({ quizSetId: this._currentQuizSetId, playMode });
+      return;
+    }
+
+    const levelId = this._quizController?.level?.id ?? null;
+    if (levelId) {
+      syncQuizRoute({ levelId, playMode });
+    }
   }
 
   _startQuizSystems() {

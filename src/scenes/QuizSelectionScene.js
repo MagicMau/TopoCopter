@@ -8,6 +8,13 @@ import {
   getWindowMetrics,
 } from '../core/runtimeDebug.js';
 import { PLAY_MODE } from '../quiz/questionModes.js';
+import {
+  clearQuizRoute,
+  hasQuizLaunchRoute,
+  readQuizRoute,
+  syncQuizRoute,
+} from '../quiz/quizRouting.js';
+import { normalizeQuizSetsData } from '../quiz/quizSetDefinitions.js';
 
 const CARD_PADDING_X = 20;
 const CARD_PADDING_Y = 14;
@@ -59,11 +66,15 @@ export default class QuizSelectionScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
+    const initialRoute = readQuizRoute();
 
     this.cameras.main.setBackgroundColor(PALETTE.water);
 
-    const quizSetsData = this.cache.json.get(DATA_CACHE_KEYS.QUIZ_SETS);
+    const quizSetsData = normalizeQuizSetsData(
+      this.cache.json.get(DATA_CACHE_KEYS.QUIZ_SETS),
+    );
     this._quizSets = quizSetsData?.sets ?? [];
+    this._selectedPlayMode = initialRoute.playMode ?? PLAY_MODE.LOCATE;
 
     debugLog('QUIZ-SELECT', 'Loaded quiz selection scene', {
       viewport: { width, height },
@@ -73,7 +84,7 @@ export default class QuizSelectionScene extends Phaser.Scene {
         id: quizSet.id ?? null,
         name: quizSet.name ?? null,
         fixedFraming: Boolean(quizSet.fixedFraming),
-        targetCount: Array.isArray(quizSet.targets) ? quizSet.targets.length : 0,
+        targetCount: quizSet.targetCount ?? 0,
         searchTime: quizSet.searchTime ?? null,
       })),
     });
@@ -87,6 +98,8 @@ export default class QuizSelectionScene extends Phaser.Scene {
     this.input.on('pointerupoutside', this._handlePointerUp, this);
     this.scale.on(Phaser.Scale.Events.RESIZE, this._handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._handleShutdown, this);
+
+    this._startFromRouteIfPresent(initialRoute);
   }
 
   _buildUI(sets, width, height) {
@@ -189,7 +202,7 @@ export default class QuizSelectionScene extends Phaser.Scene {
         wordWrap: { width: cardWidth - CARD_PADDING_X * 2, useAdvancedWrap: false },
       });
 
-    const targetCount = (quizSet.targets ?? []).length;
+    const targetCount = quizSet.targetCount ?? (quizSet.targets ?? []).length;
     const countLabel = this.add.text(
       CARD_PADDING_X,
       CARD_PADDING_Y + nameHeight + descHeight + 10,
@@ -256,7 +269,7 @@ export default class QuizSelectionScene extends Phaser.Scene {
           window: getWindowMetrics(),
           canvas: getCanvasMetrics(this.game),
         });
-        this.scene.start('HelicopterScene', { quizSetId: quizSet.id, playMode: this._selectedPlayMode });
+        this._launchQuizSet(quizSet);
       }
     });
 
@@ -326,6 +339,51 @@ export default class QuizSelectionScene extends Phaser.Scene {
     graphics.clear();
     graphics.fillStyle(color, 1);
     graphics.fillRoundedRect(0, 0, width, height, CARD_RADIUS);
+  }
+
+  _launchQuizSet(quizSet) {
+    syncQuizRoute({
+      quizSetId: quizSet.id,
+      playMode: this._selectedPlayMode,
+    });
+    this.scene.start('HelicopterScene', {
+      quizSetId: quizSet.id,
+      playMode: this._selectedPlayMode,
+    });
+  }
+
+  _startFromRouteIfPresent(route = readQuizRoute()) {
+    if (!hasQuizLaunchRoute(route)) {
+      clearQuizRoute();
+      return false;
+    }
+
+    if (route.playMode) {
+      this._selectedPlayMode = route.playMode;
+      this._updateModeButtonStyles();
+    }
+
+    if (route.quizSetId) {
+      const quizSet = this._quizSets.find((candidate) => candidate.id === route.quizSetId);
+      if (quizSet) {
+        this._launchQuizSet(quizSet);
+        return true;
+      }
+    }
+
+    if (route.levelId) {
+      syncQuizRoute({
+        levelId: route.levelId,
+        playMode: this._selectedPlayMode,
+      });
+      this.scene.start('HelicopterScene', {
+        playMode: this._selectedPlayMode,
+      });
+      return true;
+    }
+
+    clearQuizRoute();
+    return false;
   }
 
   _handleWheel(pointer, currentlyOver, deltaX, deltaY, deltaZ) {

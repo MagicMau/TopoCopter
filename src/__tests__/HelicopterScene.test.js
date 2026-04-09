@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 vi.mock('phaser', () => ({
   default: {
@@ -34,6 +34,31 @@ vi.mock('phaser', () => ({
 }));
 
 import HelicopterScene from '../scenes/HelicopterScene.js';
+
+const originalWindow = globalThis.window;
+
+function installWindow(search = '') {
+  globalThis.window = {
+    location: {
+      pathname: '/game',
+      search,
+      hash: '',
+    },
+    history: {
+      state: null,
+      replaceState: vi.fn(),
+      pushState: vi.fn(),
+    },
+  };
+}
+
+afterEach(() => {
+  if (originalWindow === undefined) {
+    delete globalThis.window;
+  } else {
+    globalThis.window = originalWindow;
+  }
+});
 
 describe('HelicopterScene.getSpawnPoint', () => {
   it('uses the fixed-framing center for curated quiz runs', () => {
@@ -106,18 +131,18 @@ describe('HelicopterScene screen-space helpers', () => {
     const scene = makeSizingScene();
     scene.baseMapMinZoom = 2;
     scene.helicopter = {
-      getBaseDisplaySize: () => ({ width: 80, height: 80 }),
+      getBaseDisplaySize: () => ({ width: 32, height: 32 }),
       setVisualScale: vi.fn(),
     };
 
     scene.syncHelicopterScale();
     const farOutScale = scene.helicopter.setVisualScale.mock.lastCall[0];
-    const farOutScreenWidth = 80 * farOutScale * scene.cameras.main.zoom;
+    const farOutScreenWidth = 32 * farOutScale * scene.cameras.main.zoom;
 
     scene.cameras.main.zoom = 8;
     scene.syncHelicopterScale();
     const zoomedInScale = scene.helicopter.setVisualScale.mock.lastCall[0];
-    const zoomedInScreenWidth = 80 * zoomedInScale * scene.cameras.main.zoom;
+    const zoomedInScreenWidth = 32 * zoomedInScale * scene.cameras.main.zoom;
 
     expect(farOutScreenWidth).toBeLessThan(36);
     expect(zoomedInScreenWidth).toBeGreaterThan(farOutScreenWidth);
@@ -238,6 +263,27 @@ describe('HelicopterScene._buildLevelFromQuizSet', () => {
     };
     const level = scene._buildLevelFromQuizSet(quizSet, {});
     expect(level.searchTime).toBe(60);
+  });
+
+  it('resolves grouped targetsByCategory definitions', () => {
+    const scene = Object.create(HelicopterScene.prototype);
+    const quizSet = {
+      id: 'test-set',
+      name: 'Test',
+      targetsByCategory: {
+        countries: ['t1'],
+        water: ['t2'],
+      },
+    };
+    const targetsData = {
+      countries: [{ id: 't1', name: 'Land', lat: 50, lon: 5 }],
+      water: [{ id: 't2', name: 'Zee', lat: 51, lon: 4 }],
+    };
+
+    expect(scene._buildLevelFromQuizSet(quizSet, targetsData).fixedTargets).toEqual([
+      { id: 't1', name: 'Land', lat: 50, lon: 5, category: 'countries' },
+      { id: 't2', name: 'Zee', lat: 51, lon: 4, category: 'water' },
+    ]);
   });
 });
 
@@ -648,6 +694,14 @@ describe('HelicopterScene._initQuizController', () => {
 });
 
 describe('HelicopterScene._resolveStartPlayMode', () => {
+  it('falls back to the browser route when scene data has no play mode', () => {
+    installWindow('?mode=mixed');
+    const scene = Object.create(HelicopterScene.prototype);
+    scene.sys = { settings: { data: {} } };
+
+    expect(scene._resolveStartPlayMode()).toBe('mixed');
+  });
+
   it('returns the playMode from sys.settings.data', () => {
     const scene = Object.create(HelicopterScene.prototype);
     scene.sys = { settings: { data: { playMode: 'spelling' } } };
@@ -675,7 +729,18 @@ describe('HelicopterScene._resolveStartPlayMode', () => {
 
   it('returns null in a non-browser environment without sys/scene', () => {
     const scene = Object.create(HelicopterScene.prototype);
+    globalThis.window = undefined;
     expect(scene._resolveStartPlayMode()).toBe(null);
+  });
+});
+
+describe('HelicopterScene._resolveStartQuizSetId', () => {
+  it('falls back to canonical browser quiz routes', () => {
+    installWindow('?quiz=quiz-west-europa');
+    const scene = Object.create(HelicopterScene.prototype);
+    scene.sys = { settings: { data: {} } };
+
+    expect(scene._resolveStartQuizSetId()).toBe('quiz-west-europa');
   });
 });
 

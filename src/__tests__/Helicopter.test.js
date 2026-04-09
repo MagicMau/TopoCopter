@@ -33,8 +33,8 @@ vi.mock('phaser', () => {
       this.rotation = 0;
       this.depth = 0;
       this.name = '';
-      this.displayWidth = 80;
-      this.displayHeight = 80;
+      this.displayWidth = 32;
+      this.displayHeight = 32;
       this.body = null;
     }
     setName(n) { this.name = n; return this; }
@@ -106,6 +106,13 @@ const captureEvents = (emitter, event) => {
 
 describe('Helicopter (fallback-body / no-physics environment)', () => {
   describe('fallback body creation', () => {
+    it('defaults to a 32x32 visual sprite', () => {
+      const heli = new Helicopter(makeScene(), 0, 0);
+      expect(heli.getBaseDisplaySize()).toEqual({ width: 32, height: 32 });
+      expect(heli.displayWidth).toBe(32);
+      expect(heli.displayHeight).toBe(32);
+    });
+
     it('creates fallbackBody when scene has no physics', () => {
       const heli = new Helicopter(makeScene(), 0, 0);
       expect(heli.fallbackBody).not.toBeNull();
@@ -117,12 +124,10 @@ describe('Helicopter (fallback-body / no-physics environment)', () => {
       expect(heli.getActiveBody()).toBe(heli.fallbackBody);
     });
 
-    it('fallbackBody dimensions reflect displaySize with minimum clamp', () => {
+    it('keeps the default fallbackBody hitbox at the legacy gameplay size', () => {
       const heli = new Helicopter(makeScene(), 0, 0);
-      const expectedW = Math.max(heli.displayWidth * 0.56, 16);
-      const expectedH = Math.max(heli.displayHeight * 0.42, 10);
-      expect(heli.fallbackBody.width).toBeCloseTo(expectedW);
-      expect(heli.fallbackBody.height).toBeCloseTo(expectedH);
+      expect(heli.fallbackBody.width).toBeCloseTo(44.8);
+      expect(heli.fallbackBody.height).toBeCloseTo(33.6);
     });
 
     it('fallbackBody center is initialized to helicopter position', () => {
@@ -264,9 +269,9 @@ describe('Helicopter (fallback-body / no-physics environment)', () => {
       const heli = new Helicopter(makeScene(), 0, 0);
       expect(typeof heli._physicsWidth).toBe('number');
       expect(typeof heli._physicsHeight).toBe('number');
-      expect(heli.getBaseDisplaySize()).toEqual({ width: 80, height: 80 });
-      expect(heli._physicsWidth).toBeGreaterThan(0);
-      expect(heli._physicsHeight).toBeGreaterThan(0);
+      expect(heli.getBaseDisplaySize()).toEqual({ width: 32, height: 32 });
+      expect(heli._physicsWidth).toBeCloseTo(44.8);
+      expect(heli._physicsHeight).toBeCloseTo(33.6);
     });
 
     it('does not throw or mutate position when called with various scales', () => {
